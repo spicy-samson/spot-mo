@@ -1,277 +1,223 @@
-# Spot Mo
+# Spot Mo — Project Proposal
+
+> Fill this out **before** writing code. If a section feels hard to answer, that's a sign the scope isn't clear yet — better to feel that now than three weeks in.
 
 ---
 
-## 1. One Liner
+## 1. One-Liner
 
-> A personal pinned-locations app for food, leisure, and self care.
+> A fast, offline-first personal place-pinning app for food, leisure, and self-care that helps urban renters and frequent travelers remember what to order, how much it costs, and what fits their daily budget within walking or driving distance.
+
+---
 
 ## 2. Problem Statement
 
-- There are lots of good places to eat around my place, and I tend to forget them.
-- Working from home, I spend a lot of mental energy every day deciding where to eat, and sometimes forget good food places entirely.
-- I also forget the good dishes at those places.
-- I want to budget my food spending daily.
-- I want to know the distance from where I am to my saved places.
-- I travel to different cities and regions and eat at different spots (e.g. carinderias). When I go back, I forget where they are.
-- I want to pin all the places I like going to, especially for food and leisure.
-
-## 3. Summary
-
-A personal pinned-locations app with three categories:
-
-- Food
-- Leisure
-- Self care
-
-**Core ideas**
-
-- **Pin and remember:** save places and the dishes worth ordering there.
-- **Daily budget helper:** plan the day's food spend; suggestions favor the most convenient option.
-- **Distance-aware:** places are shown relative to where I am, with an adjustable radius of 1–20 km.
-- **User-entered data:** every detail is typed in by the user, so it stays up to date. No reliance on Google Maps data, which can be outdated.
-- **Time-aware homepage:** a greeting that changes with the time of day, followed by a meal prompt.
-  - Example: 7 am or 10 am → "Good morning, Third. What do you want to eat for breakfast?"
-  - Example: 11 am → lunch prompt.
-  - Evening → dinner prompt.
-
-**Sharing** (social-media style) is planned for **v2**.
-
-## 3. Target user _(suggested)_
-
-Someone who lives in an apartment in a city and mostly buys food within the neighborhood ("city life"), and who also travels and wants to remember places across cities and regions.
-
-## 4. Questions to answer
-
-### Q1. Why not just use Google Maps and bookmark places?
-
-Google Maps saved lists work for remembering locations, but they fall short for this use case:
-
-- Notes are free text with a short limit. There are no structured fields for dishes or prices.
-- You can't query "places within X km that fit what I have left to spend today".
-- There's no daily budget or spend tracking.
-- Offline support is for downloaded map areas, not for searching your own lists.
-- There's no visit history ("what did I order last time, and what did it cost?").
-
-### Q2. What happens if I lose my phone or switch devices? _(suggested)_
-
-With local-only storage, all pins are lost. Options to decide on:
-
-- Export/import (JSON or CSV) as a simple v1 safety net.
-- iCloud-based backup.
-- Server sync (see the technical plan).
-
-## 5. Scope _(suggested)_
-
-### v1 (MVP)
-
-- Pin, edit, and archive places
-- Dishes per place with prices
-- Log visits
-- Daily budget with remaining-budget display
-- Suggestions by distance and budget
-- Radius setting (1–20 km)
-- Time-of-day homepage
-- Fully offline, local data
-- Data export
-
-### v2
-
-- Sharing (social-media style)
-- Accounts and sync across devices
-
-### Later / maybe
-
-- Transport tracking (see the on-hold section)
-- Opening hours
-- Photos per place or dish
-- Tags (e.g. "cheap", "good for groups", "late night")
-
-### Out of scope for now
-
-- Importing data from Google Maps or any external source
-- Turn-by-turn navigation
-- Reviews from other users
-
-## 6. Technical plan
-
-**Platform:** mobile app, iOS first.
-
-**Stack (planned)**
-
-- React Native (Expo suggested for builds and device APIs)
-- SQLite on device (`expo-sqlite`, optionally with Drizzle ORM)
-- Optional server: Cloudflare Worker with D1 (SQLite-based), only needed for sync and v2 sharing
-
-**Offline**
-
-- Pinning, browsing, logging visits, and suggestions all work with no network.
-- The map background may not render offline. A list view sorted by distance is the fully offline fallback.
-
-**Permissions**
-
-- Location: "While Using the App" is enough. Users must allow it.
-- Include a clear usage-description string explaining why location is needed.
-
-**Distance calculation**
-
-- Haversine (straight-line) distance between the device's coordinates and each place.
-- At personal-dataset sizes, computing this for all places is fast. No spatial index needed.
-- Straight-line distance is not walking distance. Real routing needs a network service.
-
-**Sync design (if added)** _(suggested)_
-
-- Client-generated UUIDs as IDs, not auto-increment integers.
-- `updated_at` on every row.
-- Soft deletes (`deleted_at`) so deletions can sync.
-- Last-write-wins conflict handling is the simplest fit for a single-user app.
-
-**Deployment (iOS)** _(suggested)_
-
-- Apple Developer Program (about $99 USD/year; verify current pricing).
-- TestFlight for personal use (builds last 90 days).
-- Full App Store release adds review, privacy labels, and a privacy policy. Defer until others use it.
-
-## 7. Ontology
-
-### Entities and attributes
-
-**LOCATION** (a raw reading, transient, not stored long-term)
-
-- latitude
-- longitude
-- accuracy
-- timestamp
-
-**PLACE**
-
-- name
-- type/category (food, leisure, self care)
-- latitude
-- longitude
-- address
-- city
-- notes _(suggested)_
-- archived flag _(suggested)_
-- maybe opening hours
-
-**PERSON**
-
-- base location (city or barangay?)
-- current location (runtime state)
-- destination
-- movement
-
-> Note: for a single-user app, Person is mostly a settings record. Current location and movement are runtime state, not saved data. Person becomes a real entity in v2 (sharing).
-
-**PRODUCT** (a dish or service) _(consider renaming to "Dish" or "Menu item")_
-
-- type (goods or services)
-- cost
-- belongs to a place
-- optionally a price history (price + date) since prices change _(suggested)_
-
-**BUDGET**
-
-- limit
-- date/timestamp
-- spend (derived from that day's visits)
-
-**VISIT**
-
-- timestamp
-- place
-- items ordered _(suggested)_
-- amount spent _(suggested)_
-- rating _(suggested)_
-- "how I got here" note _(suggested)_
-
-### On hold: TRANSPORT
-
-Held for now, since the goal is just to pin places so I remember them.
-
-- Workaround: an input box asking "Remember how you got here?"
-- Default is walking, since the app is for people with an apartment who buy food within the neighborhood.
-
-Fields for later:
-
-Held for now, since the goal is just to pin places so I remember them.
-
-- Workaround: an input box asking "Remember how you got here?"
-- Default is walking, since the app is for people with an apartment who buy food within the neighborhood.
-
-Fields for later:
-
-- vehicle
-- location
-- status
-- destination
-
-### Relationships
-
-- Person has a location of type BASE.
-- Person can pin and save a location.
-- A place is assigned a location.
-- A place has product(s).
-- A visit belongs to a place _(suggested)_ and may reference products ordered _(suggested)_.
-- A budget day aggregates the visits of that day _(suggested)_.
-
-## 8. Operations
-
-- Pin a place (name, category, coordinates, address, city)
-- Edit or archive a place
-- Add or edit dishes for a place (name, price)
-- Log a visit (place, date, items ordered, amount spent, rating, "how I got here")
-- Set a daily food budget
-- Get suggestions: places within the radius, filtered by budget, sorted by distance
-- Filter by category (food, leisure, self care) or city
-- Change the search radius (1–20 km)
-- Set or change base location
-- Export and import data _(suggested)_
-- Search saved places by name or dish _(suggested)_
-- Mark a place as favorite _(suggested)_
-
-## 9. Rules
-
-- Place data is only what the user entered. No external map data is imported.
-- Pinning and browsing must work fully offline.
-- Suggestions rank by distance first, then filter by whether typical dish prices fit the remaining budget.
-- Remaining budget = daily limit minus the sum of that day's visit spend.
-- Radius is clamped to 1–20 km.
-- The meal-time greeting is based on device local time.
-- Deleting a place shouldn't silently delete its visit history. Archive instead.
-- A place with no dishes or prices can't be filtered by budget. Decide whether it shows as "unknown cost" or is excluded.
-
-## 10. Edge cases to think through _(suggested)_
-
-- **Travel:** the radius is 1–20 km, but in another city nothing may be saved nearby. What should the home screen show?
-- **Base location:** when traveling, does "near me" use the device's current GPS or the saved base location?
-- **Time zones:** does the "day" for budgeting follow device local time when traveling?
-- **Meal windows:** what hours count as breakfast, lunch, dinner, and in-between (snacks, late night)?
-- **Budget rollover:** does unspent budget carry over, or reset daily?
-- **Partial prices:** a dish with no price, or a place with a wide price range.
-- **Duplicates:** pinning the same place twice.
-- **Closed places:** a place that permanently closes. Archive versus delete.
-- **Permission denied:** what works without location access (probably manual base location and list browsing).
-- **GPS accuracy:** indoor or poor-signal readings when pinning a place. Allow dragging the pin to adjust.
-- **Data loss:** what the user sees on a fresh install with no backup.
-
-## 11. Risks _(suggested)_
-
-- Data entry is manual, so the app only stays useful if pinning a place takes seconds.
-- Local-only data without backup can be lost.
-- Suggestions are only as good as the dish and price data the user entered.
-
-## 12. Open questions
-
-- Is the base location a city, a barangay, or a pin?
-- Exact meal-time windows for the greeting.
-- Whether v1 ships with sync or export only.
-- App name: is "Spot Mo" final?
-
-## 13. Exisitng & Similar apps
-
-- MAPSTR
-- Spot Saver
-  -Spot Saver
--
+Living in a dense city or working from home comes with decision fatigue and forgotten discoveries:
+
+- **Forgotten favorites & dishes:** There are dozens of great food spots, carinderias, cafes, and self-care shops around the neighborhood, but people easily forget they exist — or forget the specific dish worth ordering.
+- **Decision fatigue at mealtime:** Every day at breakfast, lunch, and dinner, significant mental energy is wasted asking "What should I eat?", often leading to default uninspired delivery orders.
+- **Disconnection between location & daily budget:** Existing map bookmarks don't care how much money is left for food today. Users want to see: *"What can I eat nearby that fits what I have left to spend today?"*
+- **Travel amnesia:** When traveling to provinces, cities, or recurring destinations, great local spots discovered on past trips get lost across visits.
+- **Shortcomings of existing tools (Google Maps / Apple Maps / Notes):**
+  - Notes on pins are unstructured (no dish list, price points, or order history).
+  - You cannot filter by remaining daily budget within an adjustable radius ($1\text{--}20\text{ km}$).
+  - No offline-first queryable database for your personal curated spots.
+  - No visit logs answering *"What did I order last time and what did it cost?"*
+
+---
+
+## 3. Goals vs. Non-Goals
+
+Scope discipline is vital for an offline-first mobile app.
+
+| Goals (in scope for v1) | Non-Goals (explicitly out of scope for v1) |
+| :--- | :--- |
+| **Instant manual pin creation:** name, category (`food`, `leisure`, `self_care`), coordinates/address, notes | **External map scraping / Google Maps sync:** no API dependency for place details or live hours |
+| **Structured dishes & pricing:** dishes/services per place with accurate costs | **Turn-by-turn routing navigation:** straight-line / Haversine distance only; defer native navigation intent to external maps |
+| **Daily food budget tracker:** daily allowance, spend logging from visits, remaining balance | **Public reviews & social feed:** no comments, community ratings, or public profiles (parked for v2) |
+| **Budget & distance-aware suggestions:** filter & rank places by proximity ($1\text{--}20\text{ km}$) and affordability | **Automated live transport telemetry:** no live vehicle GPS or commute telemetry (simple "How I got here" tag instead) |
+| **Time-aware smart home screen:** contextual meal prompt based on local time (Breakfast, Lunch, Merienda, Dinner, Late Night) | **Real-time multi-device cloud sync:** v1 is strictly offline local SQLite with manual JSON export/import backup |
+| **Visit log & repeat history:** track visits, items ordered, and total spent | **Desktop / web client:** mobile-first (iOS & Android via Expo) |
+| **Fully offline capability:** local SQLite database that never blocks on network connectivity | **OCR / receipt scanning / menu AI parsing:** manual quick-entry only for v1 |
+
+---
+
+## 4. Target User & Core Use Case
+
+### Primary User
+A city-dwelling professional or remote worker living in an apartment who primarily eats out or takes away within their neighborhood, who also occasionally travels to other regions and wants a permanent, private black book of places they love.
+
+### Core Use Cases
+1. **The Daily Meal Decision (Fastest Path):**
+   - User opens the app at 12:15 PM.
+   - Home screen displays: *"Good afternoon, Third. What do you want for lunch? You have ₱350 left in your daily food budget."*
+   - App presents top 3 recommendations within 2 km whose dishes fit under ₱350.
+   - User picks a carinderia, checks what dish they liked last time (e.g. *Bicol Express — ₱90*), walks there, and logs the visit with one tap.
+
+2. **The New Discovery Pin (Under 20 Seconds):**
+   - User stumbles upon a great cafe or self-care massage parlor.
+   - Opens Spot Mo $\rightarrow$ taps **+ Pin Spot** $\rightarrow$ GPS auto-fills coordinates $\rightarrow$ selects category (`Food`) $\rightarrow$ inputs 1–2 standout dishes with prices $\rightarrow$ Saves.
+
+3. **Travel Return:**
+   - User returns to Cebu or Baguio months later.
+   - Opens app, sets radius or switches view to city filter $\rightarrow$ instantly retrieves places pinned during previous trips with exact notes on what was good.
+
+---
+
+## 5. Tech Stack & Key Decisions
+
+| Layer | Choice | Why |
+| :--- | :--- | :--- |
+| **Frontend Framework** | Expo (React Native, SDK 57, New Architecture) | Cross-platform (iOS target first, Android ready), fast iteration, EAS build ecosystem. |
+| **Navigation & Routing** | Expo Router (`src/app/`) | File-based navigation, deep linking, native screen stack management. |
+| **Local Database** | `expo-sqlite` (with Drizzle ORM) | Native SQLite engine on iOS/Android; zero network latency, robust transactions, strictly offline. |
+| **State & Query** | Zustand / TanStack Query (offline-ready) | Lightweight reactive client state for active filters, radius slider, and cached queries. |
+| **Location & Geo** | `expo-location` + Haversine utility | Fast straight-line distance calculations in JS/SQLite; minimal battery overhead vs continuous tracking. |
+| **Styling & UI** | React Native StyleSheet / Tamagui or NativeWind | Clean mobile-first design, fast 60/120 FPS list rendering, dark/light theme support. |
+| **Backup / Storage** | Local JSON Export / Import (`expo-file-system`, `expo-sharing`) | Failsafe data portability without requiring a backend server or user authentication in v1. |
+| **Future Backend (v2)** | Cloudflare Workers + D1 + Drizzle | Edge-native sync and social sharing, matches low-latency serverless stack when ready. |
+
+### Open Architecture Questions
+- [ ] **Coordinate Picker UX:** When adding a place from home that isn't at the current GPS location, will we use a lightweight map pin picker or a geocoding address search? *(Recommendation for v1: Current GPS button + manual address/city fallback).*
+- [ ] **Budget Rollover:** If ₱100 is left unspent today, does it roll over into tomorrow's budget, or does each day strictly reset? *(Recommendation for v1: Strict daily reset with optional weekly review tab).*
+- [ ] **Unknown Cost Fallback:** How should places without recorded dishes/prices behave in budget filtering? *(Recommendation: Tag as "Price unknown" and display at the end of the list with a toggle "Include unpriced spots").*
+
+---
+
+## 6. MVP Feature List (Prioritized)
+
+| Feature | Priority | Notes |
+| :--- | :--- | :--- |
+| **Place CRUD** | **Must** | Create, view, edit, and soft-delete/archive places with category (`food`, `leisure`, `self_care`). |
+| **Dishes / Services with Prices** | **Must** | Add menu items with prices per place; ability to quickly edit prices when they change. |
+| **Distance Engine (Haversine)** | **Must** | Calculate distance from device GPS to all pins; filter by radius slider ($1\text{--}20\text{ km}$). |
+| **Daily Food Budget Tracker** | **Must** | Set daily target limit, display remaining balance for the day. |
+| **Visit Logging** | **Must** | Log a visit to a place, track amount spent, and auto-deduct from today's budget. |
+| **Time-of-Day Smart Homepage** | **Must** | Dynamic greetings and meal prompt windows (Breakfast, Lunch, Snack, Dinner, Late Night). |
+| **Offline-First SQLite Storage** | **Must** | Complete functionality without internet connection. |
+| **JSON Export & Import** | **Should** | Export full database backup as JSON file and restore it (safety net before cloud sync). |
+| **Search & Filter Bar** | **Should** | Search by place name, dish name, city, or category tag. |
+| **Quick "How I Got Here" Tag** | **Should** | Simple chips on visits (`Walk`, `Jeep/Bus`, `Car`, `Motorcycle/Angkas`, `Bicycle`). |
+| **Favorites / Pinned Spots** | **Could** | Star/pin top favorite spots to quick-access bar. |
+| **Photo Attachments** | **Could** | Optional camera/gallery thumbnail for place or dish (`expo-image`). |
+| **Cloud Sync & Social Sharing** | **Could (v2)** | User accounts, sharing pinned lists with friends, Cloudflare D1 sync. |
+
+---
+
+## 7. Data Model (Sketch)
+
+Local SQLite schema via Drizzle ORM:
+
+```
+places
+  id: text (UUID, PK)
+  name: text NOT NULL
+  category: text NOT NULL ('food' | 'leisure' | 'self_care')
+  latitude: real
+  longitude: real
+  address: text
+  city: text
+  notes: text
+  is_favorite: integer (0 or 1, default 0)
+  is_archived: integer (0 or 1, default 0)
+  created_at: text (ISO8601)
+  updated_at: text (ISO8601)
+
+dishes
+  id: text (UUID, PK)
+  place_id: text (FK -> places.id, ON DELETE CASCADE)
+  name: text NOT NULL
+  price: real NOT NULL
+  category: text ('dish' | 'service' | 'beverage')
+  is_recommended: integer (0 or 1, default 0)
+  created_at: text (ISO8601)
+  updated_at: text (ISO8601)
+
+visits
+  id: text (UUID, PK)
+  place_id: text (FK -> places.id, ON DELETE RESTRICT)
+  visited_at: text (ISO8601) NOT NULL
+  amount_spent: real NOT NULL
+  items_summary: text
+  transport_mode: text ('walk' | 'bike' | 'transit' | 'car' | 'other')
+  rating: integer (1 to 5)
+  notes: text
+  created_at: text (ISO8601)
+
+budget_configs
+  id: text (UUID, PK)
+  daily_limit: real NOT NULL (e.g. 500.00)
+  currency: text (default 'PHP')
+  updated_at: text (ISO8601)
+
+user_preferences
+  id: text (UUID, PK)
+  user_name: text (e.g. 'Third')
+  base_city: text
+  default_radius_km: real (default 5.0)
+  updated_at: text (ISO8601)
+```
+
+> **Design note on UUIDs & Foreign Keys:**
+> - Client-generated UUIDs (`crypto.randomUUID()`) are used instead of autoincrement IDs to ensure painless future migration to Cloudflare D1 multi-device sync.
+> - Soft delete (`is_archived`) on `places` ensures historical `visits` and spend data remain intact even if a restaurant closes down.
+
+---
+
+## 8. Milestones & Timeline
+
+| Milestone | Deliverable | Target |
+| :--- | :--- | :--- |
+| **M0 — Scaffold & DB Engine** | Expo router project setup, `expo-sqlite` + Drizzle migration pipeline, UUID generation, mock data seeding. | Week 1 |
+| **M1 — Places & Dishes CRUD** | Create, read, update, archive places; nested dish creation with prices; category filtering. | Week 2 |
+| **M2 — Location & Distance Engine** | `expo-location` integration, Haversine formula calculation, radius slider ($1\text{--}20\text{ km}$), location permissions handling. | Week 3 |
+| **M3 — Budget & Visit Logging** | Daily budget configuration, visit logging modal with price deduction, daily spend aggregation. | Week 4 |
+| **M4 — Smart Homepage & Recommendations** | Time-aware greeting widget, budget + proximity ranking algorithm, empty and travel states. | Week 5 |
+| **M5 — Export/Import & UI Polish** | JSON backup/restore via `expo-file-system`, smooth list animations, dark mode polish, physical iOS testing. | Week 6 |
+| **M6 — TestFlight Release** | EAS build configuration, standalone iOS internal test build via TestFlight. | Week 7 |
+
+---
+
+## 9. Future Roadmap (Parked Ideas)
+
+- **v2 Cloud Sync (Cloudflare Workers + D1):** Frictionless backup across devices with magic-link or Apple Sign-In.
+- **v2 Social Sharing ("Spot Mo Lists"):** Share a curated list of spots (e.g., *"Best Coffee in Poblacion"*, *"Third's Elyu Weekend Spots"*) with friends via link or QR code.
+- **Photo Attachments:** Save photos of food menus, exterior signage, or receipts locally via `expo-image`.
+- **Receipt OCR / Quick Add:** Scan physical paper receipts with camera to automatically pre-populate dishes and prices.
+- **Opening Hours Alerts:** Optional operating schedule tracker to warn if a spot is likely closed.
+- **Map View Mode:** Interactive native map view toggle alongside the high-performance distance list.
+
+---
+
+## 10. Risks & Open Questions
+
+| Risk / Question | Impact if Unresolved | Mitigation Plan |
+| :--- | :--- | :--- |
+| **Manual Data Entry Burden** | If adding a place takes $>30\text{ seconds}$, user will stop logging spots and churn. | Streamline "+ Pin" flow to 3 fields minimum (Name, Category, 1 dish/price). Auto-capture current GPS coordinate in 1 click. |
+| **GPS Accuracy & Indoors** | Device might report inaccurate coordinates inside malls or dense alleyways. | Provide an adjustable pin location or simple address/landmark text field fallback. |
+| **Travel Zero-State** | When traveling to a new city, radius query returns 0 spots, resulting in a blank screen. | Detect when distance to nearest spot exceeds radius and display: *"No spots nearby in [City]. Pinned spots in your home city are [X] km away. Tap + to pin your first spot here!"* |
+| **Local-Only Data Loss** | User uninstalls the app or changes phones and loses all spots. | Implement a prominent one-tap "Export Backup (JSON)" in Settings, with optional periodic reminder. |
+| **Location Permission Denied** | App fails if user denies GPS permission. | Graceful fallback to a manual "Base City" selector and alphabetical/category list sorting without distances. |
+
+---
+
+## 11. Existing & Similar Apps (Competitive Landscape)
+
+| App | Strengths | Where Spot Mo Wins |
+| :--- | :--- | :--- |
+| **Mapstr** | Great 3D map visualizer, social tags, sharing. | Bloated, requires account, internet-heavy, no daily food budget tracker, no structured dish price matching. |
+| **Spot Saver** | Clean place saving, simple UI. | Lacks dish-level pricing, meal-time decision engine, and daily spend logging. |
+| **Google Maps / Apple Maps** | Ubiquitous, comprehensive POI database. | Notes are unstructured, no "what fits my remaining budget" queries, no personal visit history or price tracking. |
+| **Notion / Apple Notes** | Highly customizable, flexible. | Janky mobile input, no automatic GPS distance calculation, high friction when standing outside a restaurant. |
+
+---
+
+## 12. Success Criteria
+
+For v1 to be considered complete and successful:
+
+1. **< 20-Second Pin Creation:** User can stand at a spot, tap "+", auto-tag GPS location, add a dish + price, and save in under 20 seconds.
+2. **Confident Meal Decision:** Opening the app at lunch shows immediate recommendations within walkable distance that fit today's remaining budget.
+3. **100% Offline Resilience:** App opens instantly and allows full search, creation, and visit logging in airplane mode.
+4. **Data Portability:** User can export their full dataset as a JSON file and restore it cleanly on a fresh install.
+5. **Personal TestFlight Deployment:** Packaged and installed on personal iOS device via EAS Build/TestFlight for daily personal dogfooding.
