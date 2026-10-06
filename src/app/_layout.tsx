@@ -1,4 +1,4 @@
-import { Stack } from 'expo-router';
+import { Stack } from "expo-router";
 
 export default function RootLayout() {
   return (
@@ -7,23 +7,35 @@ export default function RootLayout() {
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
 
       {/* Detail screens (slide from right) */}
-      <Stack.Screen 
-        name="spot/[id]" 
-        options={{ headerShown: true, title: 'Spot Details' }} 
+      <Stack.Screen
+        name="spot/[id]"
+        options={{ headerShown: true, title: "Spot Details" }}
       />
 
       {/* Modals (slide up from bottom) */}
-      <Stack.Screen 
-        name="spot/new" 
-        options={{ presentation: 'modal', headerShown: true, title: 'New Spot' }} 
+      <Stack.Screen
+        name="spot/new"
+        options={{
+          presentation: "modal",
+          headerShown: true,
+          title: "New Spot",
+        }}
       />
-      <Stack.Screen 
-        name="log-visit" 
-        options={{ presentation: 'modal', headerShown: true, title: 'Log Visit' }} 
+      <Stack.Screen
+        name="log-visit"
+        options={{
+          presentation: "modal",
+          headerShown: true,
+          title: "Log Visit",
+        }}
       />
-      <Stack.Screen 
-        name="settings" 
-        options={{ presentation: 'modal', headerShown: true, title: 'Settings' }} 
+      <Stack.Screen
+        name="settings"
+        options={{
+          presentation: "modal",
+          headerShown: true,
+          title: "Settings",
+        }}
       />
     </Stack>
   );
