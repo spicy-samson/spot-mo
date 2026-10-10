@@ -1,7 +1,13 @@
-import { createContext } from 'react';
+import { createContext, useContext } from "react";
 
-export const TabBarContext = createContext<{
+export interface TabBarContextType {
+  isTabBarHidden: boolean;
   setIsTabBarHidden: (hidden: boolean) => void;
-}>({
+}
+
+export const TabBarContext = createContext<TabBarContextType>({
+  isTabBarHidden: false,
   setIsTabBarHidden: () => {},
 });
+
+export const useTabBar = () => useContext(TabBarContext);

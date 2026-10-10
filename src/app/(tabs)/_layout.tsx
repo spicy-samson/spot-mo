@@ -2,13 +2,13 @@ import { NativeTabs } from "expo-router/unstable-native-tabs";
 import { useState } from "react";
 import { DynamicColorIOS, Platform } from "react-native";
 
-import { TabBarContext } from "../../context/TabBarContext";
+import { TabBarContext } from "@/context/TabBarContext";
 
 export default function TabLayout() {
   const [isTabBarHidden, setIsTabBarHidden] = useState(false);
 
   return (
-    <TabBarContext value={{ setIsTabBarHidden }}>
+    <TabBarContext.Provider value={{ isTabBarHidden, setIsTabBarHidden }}>
       <NativeTabs
         // Dynamic colors adapt to light/dark mode under the liquid glass
         hidden={isTabBarHidden}
@@ -49,6 +49,6 @@ export default function TabLayout() {
           />
         </NativeTabs.Trigger>
       </NativeTabs>
-    </TabBarContext>
+    </TabBarContext.Provider>
   );
 }

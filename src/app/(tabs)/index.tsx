@@ -1,21 +1,13 @@
-
-import { StyleSheet, Text, View } from 'react-native';
+import { useDrizzleStudio } from "expo-drizzle-studio-plugin";
+import { StyleSheet, View } from "react-native";
 import MapView from "react-native-maps";
-import * as SQLite from 'expo-sqlite';
-import { useEffect, useState } from 'react';
-import { drizzle } from 'drizzle-orm/expo-sqlite';
-import { usersTable } from '../../../db/schema';
-import { useMigrations } from 'drizzle-orm/expo-sqlite/migrator';
-import migrations from '../../../drizzle/migrations';
-import { useDrizzleStudio } from 'expo-drizzle-studio-plugin';
 
-const expo = SQLite.openDatabaseSync('db.db');
-const db = drizzle(expo);
-
+import { expo } from "@/../db/client";
 
 export default function Index() {
+  useDrizzleStudio(expo);
+
   return (
-    // MapView with a marker
     <View style={styles.container}>
       <MapView
         showsUserLocation
