@@ -659,9 +659,26 @@ export default function HomeScreen() {
             ? GOOGLE_MAPS_STYLE_DARK_LESS_LANDMARKS
             : GOOGLE_MAPS_STYLE_LESS_LANDMARKS
         }
-        onRegionChange={() => {
+        onRegionChange={(region) => {
           if (isPinningMode && !isPanningMap) {
             setIsPanningMap(true);
+          }
+          if (region && typeof region.latitudeDelta === "number") {
+            const currentTier =
+              region.latitudeDelta < 0.013
+                ? "expanded"
+                : region.latitudeDelta > 0.035
+                  ? "far"
+                  : "orb";
+
+            setMapZoomDelta((prev) => {
+              const prevTier =
+                prev < 0.013 ? "expanded" : prev > 0.035 ? "far" : "orb";
+              if (currentTier !== prevTier) {
+                return region.latitudeDelta;
+              }
+              return prev;
+            });
           }
         }}
         onRegionChangeComplete={(region) => {
@@ -687,6 +704,7 @@ export default function HomeScreen() {
           const badge = getCategoryBadge(place.category);
           const isSelected = selectedSpotId === place.id;
           const isExpanded = isSelected || mapZoomDelta < 0.013;
+          const isFarZoomedOut = mapZoomDelta > 0.035;
           const isHero = heroSpot?.id === place.id;
 
           return (
@@ -762,7 +780,12 @@ export default function HomeScreen() {
                   </>
                 ) : (
                   <>
-                    <View style={styles.orbWrapper}>
+                    <View
+                      style={[
+                        styles.orbWrapper,
+                        isFarZoomedOut && { transform: [{ scale: 0.78 }] },
+                      ]}
+                    >
                       {isHero && (
                         <View
                           style={[
@@ -791,7 +814,14 @@ export default function HomeScreen() {
                       </View>
                     </View>
                     <View
-                      style={[styles.orbArrow, { backgroundColor: badge.color }]}
+                      style={[
+                        styles.orbArrow,
+                        { backgroundColor: badge.color },
+                        isFarZoomedOut && {
+                          transform: [{ scale: 0.78 }, { rotate: "45deg" }],
+                          marginTop: -2,
+                        },
+                      ]}
                     />
                   </>
                 )}
