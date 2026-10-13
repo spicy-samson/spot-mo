@@ -17,10 +17,14 @@ function CustomBottomTabBar({ state, descriptors, navigation }: any) {
         styles.tabBarContainer,
         {
           backgroundColor: isDark
-            ? "rgba(24, 24, 27, 0.95)"
-            : "rgba(255, 255, 255, 0.96)",
-          borderTopColor: colors.border,
-          paddingBottom: Math.max(insets.bottom, 10),
+            ? "rgba(18, 18, 20, 0.92)"
+            : "rgba(255, 255, 255, 0.92)",
+          borderTopColor: isDark
+            ? "rgba(255, 255, 255, 0.1)"
+            : "rgba(0, 0, 0, 0.08)",
+          paddingBottom: Math.max(insets.bottom, 8),
+          shadowColor: "#000000",
+          shadowOpacity: isDark ? 0.35 : 0.05,
         },
       ]}
     >
@@ -39,49 +43,43 @@ function CustomBottomTabBar({ state, descriptors, navigation }: any) {
           }
         };
 
-        // 1. Center Hero Orb: Explore (The pulsating heart of Spot Mo)
+        const activeColor = colors.copper;
+        const inactiveColor = colors.subtle;
+
+        // 1. Center Tab: Explore
         if (route.name === "index") {
           return (
-            <View key={route.key} style={styles.centerOrbWrapper}>
-              <TouchableOpacity
-                onPress={onPress}
-                activeOpacity={0.85}
-                style={[
-                  styles.centerOrbButton,
-                  {
-                    backgroundColor: isDark ? "#F5F5F4" : "#1C1917",
-                    borderColor: isDark ? "#27272A" : "#FFFFFF",
-                    shadowColor: isDark ? "#000000" : "#1C1917",
-                  },
-                ]}
-                accessibilityLabel="Explore live map and nearby decisions"
-                accessibilityRole="button"
-              >
-                <Ionicons
-                  name={isFocused ? "compass" : "compass-outline"}
-                  size={27}
-                  color={isDark ? "#1C1917" : "#FFFFFF"}
-                />
-              </TouchableOpacity>
+            <TouchableOpacity
+              key={route.key}
+              onPress={onPress}
+              activeOpacity={0.7}
+              style={styles.tabItem}
+              accessibilityLabel="Explore live map and nearby decisions"
+              accessibilityRole="button"
+            >
+              <Ionicons
+                name={isFocused ? "compass" : "compass-outline"}
+                size={23}
+                color={isFocused ? activeColor : inactiveColor}
+              />
               <Text
                 style={[
                   styles.tabLabel,
                   {
-                    color: isFocused ? colors.leisure : colors.subtle,
+                    color: isFocused ? activeColor : inactiveColor,
                     fontFamily: isFocused
                       ? FontFamily.sansBold
                       : FontFamily.sansMedium,
-                    marginTop: 3,
                   },
                 ]}
               >
                 Explore
               </Text>
-            </View>
+            </TouchableOpacity>
           );
         }
 
-        // 2. Left Tab: Spots (Curated Black Book)
+        // 2. Left Tab: Spots
         if (route.name === "spots") {
           return (
             <TouchableOpacity
@@ -95,13 +93,13 @@ function CustomBottomTabBar({ state, descriptors, navigation }: any) {
               <Ionicons
                 name={isFocused ? "bookmark" : "bookmark-outline"}
                 size={22}
-                color={isFocused ? colors.leisure : colors.subtle}
+                color={isFocused ? activeColor : inactiveColor}
               />
               <Text
                 style={[
                   styles.tabLabel,
                   {
-                    color: isFocused ? colors.leisure : colors.subtle,
+                    color: isFocused ? activeColor : inactiveColor,
                     fontFamily: isFocused
                       ? FontFamily.sansBold
                       : FontFamily.sansMedium,
@@ -114,7 +112,7 @@ function CustomBottomTabBar({ state, descriptors, navigation }: any) {
           );
         }
 
-        // 3. Right Tab: Spend (Financial Diary & Logs)
+        // 3. Right Tab: Spend
         if (route.name === "spend") {
           return (
             <TouchableOpacity
@@ -128,13 +126,13 @@ function CustomBottomTabBar({ state, descriptors, navigation }: any) {
               <Ionicons
                 name={isFocused ? "wallet" : "wallet-outline"}
                 size={22}
-                color={isFocused ? colors.leisure : colors.subtle}
+                color={isFocused ? activeColor : inactiveColor}
               />
               <Text
                 style={[
                   styles.tabLabel,
                   {
-                    color: isFocused ? colors.leisure : colors.subtle,
+                    color: isFocused ? activeColor : inactiveColor,
                     fontFamily: isFocused
                       ? FontFamily.sansBold
                       : FontFamily.sansMedium,
@@ -197,20 +195,19 @@ export default function TabLayout() {
 
 const styles = StyleSheet.create({
   tabBarContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-around",
-    borderTopWidth: 1,
-    paddingTop: 8,
     position: "absolute",
     bottom: 0,
     left: 0,
     right: 0,
-    shadowColor: "#000",
-    shadowOpacity: 0.08,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-around",
+    borderTopWidth: StyleSheet.hairlineWidth,
+    paddingTop: 8,
+    shadowOffset: { width: 0, height: -2 },
     shadowRadius: 10,
-    shadowOffset: { width: 0, height: -3 },
     elevation: 8,
+    zIndex: 50,
   },
   tabItem: {
     flex: 1,
@@ -219,26 +216,8 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     gap: 3,
   },
-  centerOrbWrapper: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: -22,
-  },
-  centerOrbButton: {
-    width: 54,
-    height: 54,
-    borderRadius: 27,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 3.5,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.28,
-    shadowRadius: 8,
-    elevation: 8,
-  },
   tabLabel: {
     fontSize: 10,
-    letterSpacing: 0.2,
+    letterSpacing: 0.15,
   },
 });

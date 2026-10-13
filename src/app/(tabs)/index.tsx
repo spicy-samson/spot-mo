@@ -82,7 +82,8 @@ const INITIAL_SEED_SPOTS = [
     city: "Makati",
     highlightDish: "Golden Ticket Waffles",
     highlightPrice: 280,
-    notes: "Specialty coffee roastery and café known for pour-overs and waffle breakfast.",
+    notes:
+      "Specialty coffee roastery and café known for pour-overs and waffle breakfast.",
   },
   {
     id: "seed-sycip",
@@ -94,7 +95,8 @@ const INITIAL_SEED_SPOTS = [
     city: "Makati",
     highlightDish: "Garden Stroll & Koi Pond",
     highlightPrice: 0,
-    notes: "Tranquil urban green sanctuary with indigenous trees, koi ponds, and gazebos.",
+    notes:
+      "Tranquil urban green sanctuary with indigenous trees, koi ponds, and gazebos.",
   },
   {
     id: "seed-tobys",
@@ -106,7 +108,8 @@ const INITIAL_SEED_SPOTS = [
     city: "Makati",
     highlightDish: "Flat White & Croissant",
     highlightPrice: 190,
-    notes: "Cozy corner café perfect for remote work and quick breakfast pastries.",
+    notes:
+      "Cozy corner café perfect for remote work and quick breakfast pastries.",
   },
   {
     id: "seed-ayala-triangle",
@@ -118,7 +121,8 @@ const INITIAL_SEED_SPOTS = [
     city: "Makati",
     highlightDish: "Shaded Tree Canopy Walk",
     highlightPrice: 0,
-    notes: "Expansive green park in the heart of Makati CBD, great for evening jogging and strolls.",
+    notes:
+      "Expansive green park in the heart of Makati CBD, great for evening jogging and strolls.",
   },
   {
     id: "seed-grey-space",
@@ -130,7 +134,8 @@ const INITIAL_SEED_SPOTS = [
     city: "Makati",
     highlightDish: "Aromatherapy Recovery",
     highlightPrice: 850,
-    notes: "Minimalist urban spa offering restorative massage and holistic wellness.",
+    notes:
+      "Minimalist urban spa offering restorative massage and holistic wellness.",
   },
   {
     id: "seed-kura",
@@ -315,7 +320,7 @@ const GOOGLE_MAPS_STYLE_DARK_LESS_LANDMARKS = [
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const screenHeight = Dimensions.get("window").height;
-  const bottomBarClearance = 50 + Math.max(insets.bottom, 10) + 8;
+  const bottomBarClearance = 50 + Math.max(insets.bottom, 8);
   const fullSheetHeight = Math.min(500, screenHeight - insets.top - 130);
 
   const PEEK_HEIGHT = 72;
@@ -466,13 +471,12 @@ export default function HomeScreen() {
     latitude: number;
     longitude: number;
   } | null>(null);
-  const [centerAddress, setCenterAddress] =
-    useState<string>("Locating address...");
+  const [centerAddress, setCenterAddress] = useState<string>(
+    "Locating address...",
+  );
 
   // Category- and time-aware contextual info for Decision Radar & Header
-  const getContextualInfo = (
-    cat: "all" | "food" | "leisure" | "self_care",
-  ) => {
+  const getContextualInfo = (cat: "all" | "food" | "leisure" | "self_care") => {
     const hour = new Date().getHours();
 
     if (hour >= 5 && hour < 11) {
@@ -826,8 +830,8 @@ export default function HomeScreen() {
     ? places.find((p) => p.id === selectedSpotId) ||
       (places.length > 0 ? places[0] : null)
     : places.length > 0
-    ? places[0]
-    : null;
+      ? places[0]
+      : null;
 
   const handleCenterGPS = async () => {
     try {
@@ -961,7 +965,6 @@ export default function HomeScreen() {
       setIsPinningMode(false);
     }
   };
-
 
   if (!userLocation) {
     return (
@@ -1197,11 +1200,7 @@ export default function HomeScreen() {
                 },
               ]}
             >
-              <Octicons
-                name="location"
-                size={17}
-                color={colors.primaryText}
-              />
+              <Octicons name="location" size={17} color={colors.primaryText} />
             </View>
             <View
               style={[
@@ -1489,25 +1488,18 @@ export default function HomeScreen() {
           <View style={styles.pinningDockHeader}>
             <View style={styles.pinningTag}>
               <View
-                style={[
-                  styles.pinningDot,
-                  { backgroundColor: colors.copper },
-                ]}
+                style={[styles.pinningDot, { backgroundColor: colors.copper }]}
               />
-              <Text
-                style={[styles.pinningTagText, { color: colors.copper }]}
-              >
+              <Text style={[styles.pinningTagText, { color: colors.copper }]}>
                 AIMING SPOT
               </Text>
             </View>
             {centerCoord && (
               <Text
-                style={[
-                  styles.pinningCoordsText,
-                  { color: colors.subtle },
-                ]}
+                style={[styles.pinningCoordsText, { color: colors.subtle }]}
               >
-                {centerCoord.latitude.toFixed(4)}°, {centerCoord.longitude.toFixed(4)}°
+                {centerCoord.latitude.toFixed(4)}°,{" "}
+                {centerCoord.longitude.toFixed(4)}°
               </Text>
             )}
           </View>
@@ -1577,7 +1569,7 @@ export default function HomeScreen() {
               bottom: bottomBarClearance,
               height: animatedSheetHeight,
               backgroundColor: colors.cardGlass,
-              borderColor: colors.border,
+              borderTopColor: colors.border,
             },
           ]}
         >
@@ -1608,74 +1600,84 @@ export default function HomeScreen() {
                 onPress={() => setSheetState("half")}
                 activeOpacity={0.85}
               >
-            <View style={styles.peekLeftSection}>
-              <View
-                style={[
-                  styles.peekContextIconBox,
-                  { backgroundColor: contextInfo.lightColor },
-                ]}
-              >
-                <Ionicons
-                  name={contextInfo.icon}
-                  size={14}
-                  color={contextInfo.color}
-                />
-              </View>
-              <View>
-                <Text
-                  style={[styles.peekMealTitle, { color: colors.charcoal }]}
-                >
-                  {contextInfo.title}
-                </Text>
-                <Text
-                  style={[styles.peekSpotsCountText, { color: colors.muted }]}
-                >
-                  {places.length} spots on radar
-                </Text>
-              </View>
-            </View>
-
-            <View style={styles.peekRightSection}>
-              <View style={styles.peekBudgetGlance}>
-                <Text
-                  style={[styles.peekBudgetAmount, { color: colors.charcoal }]}
-                >
-                  <Text
-                    style={{
-                      fontFamily: FontFamily.serifBold,
-                      color: colors.leisure,
-                    }}
-                  >
-                    ₱320
-                  </Text>{" "}
-                  left
-                </Text>
-                <View
-                  style={[
-                    styles.peekBudgetMiniBar,
-                    { backgroundColor: colors.sandDark },
-                  ]}
-                >
+                <View style={styles.peekLeftSection}>
                   <View
                     style={[
-                      styles.peekBudgetMiniFill,
-                      {
-                        width: "64%",
-                        backgroundColor: colors.leisure,
-                      },
+                      styles.peekContextIconBox,
+                      { backgroundColor: contextInfo.lightColor },
                     ]}
-                  />
+                  >
+                    <Ionicons
+                      name={contextInfo.icon}
+                      size={14}
+                      color={contextInfo.color}
+                    />
+                  </View>
+                  <View>
+                    <Text
+                      style={[styles.peekMealTitle, { color: colors.charcoal }]}
+                    >
+                      {contextInfo.title}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.peekSpotsCountText,
+                        { color: colors.muted },
+                      ]}
+                    >
+                      {places.length} spots on radar
+                    </Text>
+                  </View>
                 </View>
-              </View>
-              <View
-                style={[
-                  styles.sheetExpandChevronBox,
-                  { backgroundColor: colors.sandDark },
-                ]}
-              >
-                <Octicons name="chevron-up" size={14} color={colors.charcoal} />
-              </View>
-            </View>
+
+                <View style={styles.peekRightSection}>
+                  <View style={styles.peekBudgetGlance}>
+                    <Text
+                      style={[
+                        styles.peekBudgetAmount,
+                        { color: colors.charcoal },
+                      ]}
+                    >
+                      <Text
+                        style={{
+                          fontFamily: FontFamily.serifBold,
+                          color: colors.leisure,
+                        }}
+                      >
+                        ₱320
+                      </Text>{" "}
+                      left
+                    </Text>
+                    <View
+                      style={[
+                        styles.peekBudgetMiniBar,
+                        { backgroundColor: colors.sandDark },
+                      ]}
+                    >
+                      <View
+                        style={[
+                          styles.peekBudgetMiniFill,
+                          {
+                            width: "64%",
+                            backgroundColor: colors.leisure,
+                          },
+                        ]}
+                      />
+                    </View>
+                  </View>
+                  <View
+                    style={[
+                      styles.sheetExpandChevronBox,
+                      { backgroundColor: colors.sandDark },
+                    ]}
+                  >
+                    <Octicons
+                      name="chevron-up"
+                      size={14}
+                      color={colors.charcoal}
+                    />
+                  </View>
+                </View>
               </TouchableOpacity>
             </View>
           )}
@@ -1688,508 +1690,521 @@ export default function HomeScreen() {
                 style={styles.halfHeaderRow}
                 {...sheetPanResponder.panHandlers}
               >
-              <View style={styles.feedTitleLeft}>
+                <View style={styles.feedTitleLeft}>
+                  <View
+                    style={[
+                      styles.copperDot,
+                      { backgroundColor: contextInfo.color },
+                    ]}
+                  />
+                  <Text style={[styles.feedTitle, { color: colors.charcoal }]}>
+                    {contextInfo.title.toUpperCase()}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.cityPill,
+                      {
+                        backgroundColor: contextInfo.lightColor,
+                        color: contextInfo.color,
+                      },
+                    ]}
+                  >
+                    {city} CBD
+                  </Text>
+                </View>
+                <View style={styles.halfHeaderControls}>
+                  <TouchableOpacity
+                    onPress={() => setSheetState("full")}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    style={[
+                      styles.stateControlBtn,
+                      { backgroundColor: colors.sandDark },
+                    ]}
+                  >
+                    <Octicons
+                      name="chevron-up"
+                      size={14}
+                      color={colors.charcoal}
+                    />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => setSheetState("peek")}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    style={[
+                      styles.stateControlBtn,
+                      { backgroundColor: colors.sandDark },
+                    ]}
+                  >
+                    <Octicons
+                      name="chevron-down"
+                      size={14}
+                      color={colors.charcoal}
+                    />
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              {/* Spotlight Hero Card */}
+              {heroSpot ? (
                 <View
                   style={[
-                    styles.copperDot,
-                    { backgroundColor: contextInfo.color },
-                  ]}
-                />
-                <Text style={[styles.feedTitle, { color: colors.charcoal }]}>
-                  {contextInfo.title.toUpperCase()}
-                </Text>
-                <Text
-                  style={[
-                    styles.cityPill,
+                    styles.heroSpotCard,
                     {
-                      backgroundColor: contextInfo.lightColor,
-                      color: contextInfo.color,
+                      backgroundColor: isDark
+                        ? "rgba(39, 39, 42, 0.75)"
+                        : "rgba(245, 245, 240, 0.9)",
+                      borderColor: colors.border,
                     },
                   ]}
                 >
-                  {city} CBD
-                </Text>
-              </View>
-              <View style={styles.halfHeaderControls}>
-                <TouchableOpacity
-                  onPress={() => setSheetState("full")}
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                  style={[
-                    styles.stateControlBtn,
-                    { backgroundColor: colors.sandDark },
-                  ]}
-                >
-                  <Octicons
-                    name="chevron-up"
-                    size={14}
-                    color={colors.charcoal}
-                  />
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() => setSheetState("peek")}
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                  style={[
-                    styles.stateControlBtn,
-                    { backgroundColor: colors.sandDark },
-                  ]}
-                >
-                  <Octicons
-                    name="chevron-down"
-                    size={14}
-                    color={colors.charcoal}
-                  />
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            {/* Spotlight Hero Card */}
-            {heroSpot ? (
-              <View
-                style={[
-                  styles.heroSpotCard,
-                  {
-                    backgroundColor: isDark
-                      ? "rgba(39, 39, 42, 0.75)"
-                      : "rgba(245, 245, 240, 0.9)",
-                    borderColor: colors.border,
-                  },
-                ]}
-              >
-                <View style={styles.heroCardHeaderRow}>
-                  <View style={styles.heroBadgeRow}>
-                    <View
-                      style={[
-                        styles.heroCategoryBadge,
-                        {
-                          backgroundColor:
-                            getCategoryBadge(heroSpot.category).color + "20",
-                        },
-                      ]}
-                    >
-                      <Ionicons
-                        name={getCategoryBadge(heroSpot.category).icon}
-                        size={12}
-                        color={getCategoryBadge(heroSpot.category).color}
-                      />
-                      <Text
+                  <View style={styles.heroCardHeaderRow}>
+                    <View style={styles.heroBadgeRow}>
+                      <View
                         style={[
-                          styles.heroCategoryText,
+                          styles.heroCategoryBadge,
                           {
-                            color: getCategoryBadge(heroSpot.category).color,
+                            backgroundColor:
+                              getCategoryBadge(heroSpot.category).color + "20",
                           },
                         ]}
                       >
-                        {getCategoryBadge(heroSpot.category).label}
-                      </Text>
+                        <Ionicons
+                          name={getCategoryBadge(heroSpot.category).icon}
+                          size={12}
+                          color={getCategoryBadge(heroSpot.category).color}
+                        />
+                        <Text
+                          style={[
+                            styles.heroCategoryText,
+                            {
+                              color: getCategoryBadge(heroSpot.category).color,
+                            },
+                          ]}
+                        >
+                          {getCategoryBadge(heroSpot.category).label}
+                        </Text>
+                      </View>
+                      <View
+                        style={[
+                          styles.heroDistanceBadge,
+                          { backgroundColor: colors.sandDark },
+                        ]}
+                      >
+                        <Ionicons
+                          name="walk-outline"
+                          size={11}
+                          color={colors.charcoal}
+                        />
+                        <Text
+                          style={[
+                            styles.heroDistanceText,
+                            { color: colors.charcoal },
+                          ]}
+                        >
+                          {formatDistance(heroSpot.distanceKm)}
+                        </Text>
+                      </View>
                     </View>
-                    <View
+
+                    {heroSpot.highlightPrice ? (
+                      <Text
+                        style={[styles.heroPriceText, { color: colors.copper }]}
+                      >
+                        ₱{heroSpot.highlightPrice}
+                      </Text>
+                    ) : null}
+                  </View>
+
+                  <Text
+                    style={[styles.heroSpotName, { color: colors.charcoal }]}
+                    numberOfLines={1}
+                  >
+                    {heroSpot.name}
+                  </Text>
+
+                  <Text
+                    style={[styles.heroSpotSubtitle, { color: colors.muted }]}
+                    numberOfLines={1}
+                  >
+                    {heroSpot.highlightDish
+                      ? `${heroSpot.highlightDish} • ${
+                          heroSpot.address || heroSpot.city || "Makati"
+                        }`
+                      : heroSpot.address || "Local favorite"}
+                  </Text>
+
+                  {/* Hero Action Row */}
+                  <View style={styles.heroActionRow}>
+                    <TouchableOpacity
                       style={[
-                        styles.heroDistanceBadge,
-                        { backgroundColor: colors.sandDark },
+                        styles.heroFocusBtn,
+                        {
+                          backgroundColor: colors.sandDark,
+                          borderColor: colors.border,
+                        },
                       ]}
+                      onPress={() => focusPlaceOnMap(heroSpot)}
                     >
                       <Ionicons
-                        name="walk-outline"
-                        size={11}
+                        name="navigate-outline"
+                        size={13}
                         color={colors.charcoal}
                       />
                       <Text
                         style={[
-                          styles.heroDistanceText,
+                          styles.heroFocusBtnText,
                           { color: colors.charcoal },
                         ]}
                       >
-                        {formatDistance(heroSpot.distanceKm)}
+                        Focus Map
                       </Text>
-                    </View>
-                  </View>
+                    </TouchableOpacity>
 
-                  {heroSpot.highlightPrice ? (
-                    <Text
-                      style={[styles.heroPriceText, { color: colors.copper }]}
-                    >
-                      ₱{heroSpot.highlightPrice}
-                    </Text>
-                  ) : null}
-                </View>
-
-                <Text
-                  style={[styles.heroSpotName, { color: colors.charcoal }]}
-                  numberOfLines={1}
-                >
-                  {heroSpot.name}
-                </Text>
-
-                <Text
-                  style={[styles.heroSpotSubtitle, { color: colors.muted }]}
-                  numberOfLines={1}
-                >
-                  {heroSpot.highlightDish
-                    ? `${heroSpot.highlightDish} • ${
-                        heroSpot.address || heroSpot.city || "Makati"
-                      }`
-                    : heroSpot.address || "Local favorite"}
-                </Text>
-
-                {/* Hero Action Row */}
-                <View style={styles.heroActionRow}>
-                  <TouchableOpacity
-                    style={[
-                      styles.heroFocusBtn,
-                      {
-                        backgroundColor: colors.sandDark,
-                        borderColor: colors.border,
-                      },
-                    ]}
-                    onPress={() => focusPlaceOnMap(heroSpot)}
-                  >
-                    <Ionicons
-                      name="navigate-outline"
-                      size={13}
-                      color={colors.charcoal}
-                    />
-                    <Text
-                      style={[
-                        styles.heroFocusBtnText,
-                        { color: colors.charcoal },
-                      ]}
-                    >
-                      Focus Map
-                    </Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={[
-                      styles.heroLogBtn,
-                      { backgroundColor: colors.copper },
-                    ]}
-                    onPress={() => {
-                      router.push({
-                        pathname: "/spot/new",
-                        params: {
-                          lat: heroSpot.latitude?.toString() || "",
-                          lng: heroSpot.longitude?.toString() || "",
-                          address: heroSpot.address || "",
-                        },
-                      });
-                    }}
-                  >
-                    <Octicons
-                      name="plus"
-                      size={12}
-                      color={colors.primaryText}
-                    />
-                    <Text
-                      style={[
-                        styles.heroLogBtnText,
-                        { color: colors.primaryText },
-                      ]}
-                    >
-                      Add Offering
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            ) : (
-              <View style={styles.emptyHeroSpot}>
-                <Text style={[styles.emptyHeroText, { color: colors.muted }]}>
-                  No spots recorded in this area yet.
-                </Text>
-              </View>
-            )}
-
-            {/* Next 2 Nearby Spots Quick List */}
-            {places.length > 1 && (
-              <View style={styles.miniSpotsList}>
-                {places.slice(1, 3).map((spot) => {
-                  const badge = getCategoryBadge(spot.category);
-                  return (
                     <TouchableOpacity
-                      key={spot.id}
                       style={[
-                        styles.miniSpotRow,
-                        { borderBottomColor: colors.border },
+                        styles.heroLogBtn,
+                        { backgroundColor: colors.copper },
                       ]}
-                      onPress={() => focusPlaceOnMap(spot)}
-                      activeOpacity={0.7}
+                      onPress={() => {
+                        router.push({
+                          pathname: "/spot/new",
+                          params: {
+                            lat: heroSpot.latitude?.toString() || "",
+                            lng: heroSpot.longitude?.toString() || "",
+                            address: heroSpot.address || "",
+                          },
+                        });
+                      }}
                     >
-                      <View style={styles.miniSpotLeft}>
-                        <View
-                          style={[
-                            styles.miniCategoryDot,
-                            { backgroundColor: badge.color },
-                          ]}
-                        />
-                        <Text
-                          style={[
-                            styles.miniSpotName,
-                            { color: colors.charcoal },
-                          ]}
-                          numberOfLines={1}
-                        >
-                          {spot.name}
-                        </Text>
-                      </View>
-                      <View style={styles.miniSpotRight}>
-                        <Text
-                          style={[styles.miniSpotDist, { color: colors.muted }]}
-                        >
-                          {formatDistance(spot.distanceKm)}
-                        </Text>
-                        {spot.highlightPrice ? (
+                      <Octicons
+                        name="plus"
+                        size={12}
+                        color={colors.primaryText}
+                      />
+                      <Text
+                        style={[
+                          styles.heroLogBtnText,
+                          { color: colors.primaryText },
+                        ]}
+                      >
+                        Add Offering
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ) : (
+                <View style={styles.emptyHeroSpot}>
+                  <Text style={[styles.emptyHeroText, { color: colors.muted }]}>
+                    No spots recorded in this area yet.
+                  </Text>
+                </View>
+              )}
+
+              {/* Next 2 Nearby Spots Quick List */}
+              {places.length > 1 && (
+                <View style={styles.miniSpotsList}>
+                  {places.slice(1, 3).map((spot) => {
+                    const badge = getCategoryBadge(spot.category);
+                    return (
+                      <TouchableOpacity
+                        key={spot.id}
+                        style={[
+                          styles.miniSpotRow,
+                          { borderBottomColor: colors.border },
+                        ]}
+                        onPress={() => focusPlaceOnMap(spot)}
+                        activeOpacity={0.7}
+                      >
+                        <View style={styles.miniSpotLeft}>
+                          <View
+                            style={[
+                              styles.miniCategoryDot,
+                              { backgroundColor: badge.color },
+                            ]}
+                          />
                           <Text
                             style={[
-                              styles.miniSpotPrice,
-                              { color: colors.copper },
+                              styles.miniSpotName,
+                              { color: colors.charcoal },
+                            ]}
+                            numberOfLines={1}
+                          >
+                            {spot.name}
+                          </Text>
+                        </View>
+                        <View style={styles.miniSpotRight}>
+                          <Text
+                            style={[
+                              styles.miniSpotDist,
+                              { color: colors.muted },
                             ]}
                           >
-                            ₱{spot.highlightPrice}
+                            {formatDistance(spot.distanceKm)}
                           </Text>
-                        ) : null}
-                      </View>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            )}
+                          {spot.highlightPrice ? (
+                            <Text
+                              style={[
+                                styles.miniSpotPrice,
+                                { color: colors.copper },
+                              ]}
+                            >
+                              ₱{spot.highlightPrice}
+                            </Text>
+                          ) : null}
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              )}
 
-            {/* Footer Prompt */}
-            <TouchableOpacity
-              style={styles.halfFooterBar}
-              onPress={() => setSheetState("full")}
-            >
-              <Text style={[styles.halfFooterText, { color: contextInfo.color }]}>
-                Browse all {places.length} radar spots in full deck →
-              </Text>
-            </TouchableOpacity>
-          </View>
-        )}
-
-        {/* STATE C: FULL STATE - CURATED RADAR DECK */}
-        {sheetState === "full" && (
-          <View style={styles.fullContentContainer}>
-            {/* Header */}
-            <View
-              style={styles.fullHeaderRow}
-              {...sheetPanResponder.panHandlers}
-            >
-              <View style={styles.fullTitleRow}>
-                <View
-                  style={[
-                    styles.copperDot,
-                    { backgroundColor: contextInfo.color },
-                  ]}
-                />
+              {/* Footer Prompt */}
+              <TouchableOpacity
+                style={styles.halfFooterBar}
+                onPress={() => setSheetState("full")}
+              >
                 <Text
-                  style={[styles.fullTitleText, { color: colors.charcoal }]}
+                  style={[styles.halfFooterText, { color: contextInfo.color }]}
                 >
-                  {contextInfo.title.toUpperCase()}
+                  Browse all {places.length} radar spots in full deck →
                 </Text>
-                <View
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {/* STATE C: FULL STATE - CURATED RADAR DECK */}
+          {sheetState === "full" && (
+            <View style={styles.fullContentContainer}>
+              {/* Header */}
+              <View
+                style={styles.fullHeaderRow}
+                {...sheetPanResponder.panHandlers}
+              >
+                <View style={styles.fullTitleRow}>
+                  <View
+                    style={[
+                      styles.copperDot,
+                      { backgroundColor: contextInfo.color },
+                    ]}
+                  />
+                  <Text
+                    style={[styles.fullTitleText, { color: colors.charcoal }]}
+                  >
+                    {contextInfo.title.toUpperCase()}
+                  </Text>
+                  <View
+                    style={[
+                      styles.fullCountBadge,
+                      { backgroundColor: colors.sandDark },
+                    ]}
+                  >
+                    <Text
+                      style={[styles.fullCountText, { color: colors.charcoal }]}
+                    >
+                      {places.length} spots
+                    </Text>
+                  </View>
+                </View>
+                <TouchableOpacity
+                  onPress={() => setSheetState("half")}
                   style={[
-                    styles.fullCountBadge,
+                    styles.fullMinimizeBtn,
                     { backgroundColor: colors.sandDark },
                   ]}
                 >
                   <Text
-                    style={[styles.fullCountText, { color: colors.charcoal }]}
+                    style={[
+                      styles.fullMinimizeBtnText,
+                      { color: colors.charcoal },
+                    ]}
                   >
-                    {places.length} spots
+                    Minimise ↓
                   </Text>
-                </View>
+                </TouchableOpacity>
               </View>
-              <TouchableOpacity
-                onPress={() => setSheetState("half")}
-                style={[
-                  styles.fullMinimizeBtn,
-                  { backgroundColor: colors.sandDark },
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.fullMinimizeBtnText,
-                    { color: colors.charcoal },
-                  ]}
-                >
-                  Minimise ↓
-                </Text>
-              </TouchableOpacity>
-            </View>
 
-            {/* Full Deck Scrollable Cards */}
-            <ScrollView
-              showsVerticalScrollIndicator={false}
-              nestedScrollEnabled={true}
-              contentContainerStyle={styles.fullScrollContent}
-            >
-              {places.length === 0 ? (
-                <View style={styles.fullEmptyContainer}>
-                  <Octicons name="inbox" size={32} color={colors.subtle} />
-                  <Text
-                    style={[styles.fullEmptyTitle, { color: colors.charcoal }]}
-                  >
-                    No spots found for this filter
-                  </Text>
-                  <Text style={[styles.fullEmptySub, { color: colors.muted }]}>
-                    Tap the + button to drop an anchor pin on the map.
-                  </Text>
-                </View>
-              ) : (
-                places.map((place) => {
-                  const badge = getCategoryBadge(place.category);
-                  return (
-                    <View
-                      key={place.id}
+              {/* Full Deck Scrollable Cards */}
+              <ScrollView
+                showsVerticalScrollIndicator={false}
+                nestedScrollEnabled={true}
+                contentContainerStyle={styles.fullScrollContent}
+              >
+                {places.length === 0 ? (
+                  <View style={styles.fullEmptyContainer}>
+                    <Octicons name="inbox" size={32} color={colors.subtle} />
+                    <Text
                       style={[
-                        styles.deckCard,
-                        {
-                          backgroundColor: isDark
-                            ? "rgba(39, 39, 42, 0.75)"
-                            : "rgba(250, 248, 245, 0.95)",
-                          borderColor: colors.border,
-                        },
+                        styles.fullEmptyTitle,
+                        { color: colors.charcoal },
                       ]}
                     >
-                      <View style={styles.deckCardHeader}>
-                        <View style={styles.deckCardBadgeGroup}>
-                          <View
-                            style={[
-                              styles.heroCategoryBadge,
-                              {
-                                backgroundColor: badge.color + "20",
-                              },
-                            ]}
-                          >
-                            <Ionicons
-                              name={badge.icon}
-                              size={11}
-                              color={badge.color}
-                            />
-                            <Text
+                      No spots found for this filter
+                    </Text>
+                    <Text
+                      style={[styles.fullEmptySub, { color: colors.muted }]}
+                    >
+                      Tap the + button to drop an anchor pin on the map.
+                    </Text>
+                  </View>
+                ) : (
+                  places.map((place) => {
+                    const badge = getCategoryBadge(place.category);
+                    return (
+                      <View
+                        key={place.id}
+                        style={[
+                          styles.deckCard,
+                          {
+                            backgroundColor: isDark
+                              ? "rgba(39, 39, 42, 0.75)"
+                              : "rgba(250, 248, 245, 0.95)",
+                            borderColor: colors.border,
+                          },
+                        ]}
+                      >
+                        <View style={styles.deckCardHeader}>
+                          <View style={styles.deckCardBadgeGroup}>
+                            <View
                               style={[
-                                styles.heroCategoryText,
-                                { color: badge.color },
+                                styles.heroCategoryBadge,
+                                {
+                                  backgroundColor: badge.color + "20",
+                                },
                               ]}
                             >
-                              {badge.label}
-                            </Text>
+                              <Ionicons
+                                name={badge.icon}
+                                size={11}
+                                color={badge.color}
+                              />
+                              <Text
+                                style={[
+                                  styles.heroCategoryText,
+                                  { color: badge.color },
+                                ]}
+                              >
+                                {badge.label}
+                              </Text>
+                            </View>
+                            <View
+                              style={[
+                                styles.heroDistanceBadge,
+                                { backgroundColor: colors.sandDark },
+                              ]}
+                            >
+                              <Ionicons
+                                name="walk-outline"
+                                size={11}
+                                color={colors.charcoal}
+                              />
+                              <Text
+                                style={[
+                                  styles.heroDistanceText,
+                                  { color: colors.charcoal },
+                                ]}
+                              >
+                                {formatDistance(place.distanceKm)}
+                              </Text>
+                            </View>
                           </View>
-                          <View
+                          {place.highlightPrice ? (
+                            <Text
+                              style={[
+                                styles.deckCardPrice,
+                                { color: colors.copper },
+                              ]}
+                            >
+                              ₱{place.highlightPrice}
+                            </Text>
+                          ) : null}
+                        </View>
+
+                        <Text
+                          style={[
+                            styles.deckCardName,
+                            { color: colors.charcoal },
+                          ]}
+                        >
+                          {place.name}
+                        </Text>
+
+                        <Text
+                          style={[
+                            styles.deckCardDetail,
+                            { color: colors.muted },
+                          ]}
+                          numberOfLines={1}
+                        >
+                          {place.highlightDish
+                            ? `${place.highlightDish} • ${
+                                place.address || place.city || "Makati"
+                              }`
+                            : place.address || "Local favorite"}
+                        </Text>
+
+                        <View style={styles.deckCardActionsRow}>
+                          <TouchableOpacity
                             style={[
-                              styles.heroDistanceBadge,
-                              { backgroundColor: colors.sandDark },
+                              styles.deckCardFocusBtn,
+                              {
+                                backgroundColor: colors.sandDark,
+                                borderColor: colors.border,
+                              },
                             ]}
+                            onPress={() => focusPlaceOnMap(place)}
                           >
                             <Ionicons
-                              name="walk-outline"
-                              size={11}
+                              name="navigate-outline"
+                              size={12}
                               color={colors.charcoal}
                             />
                             <Text
                               style={[
-                                styles.heroDistanceText,
+                                styles.deckCardFocusBtnText,
                                 { color: colors.charcoal },
                               ]}
                             >
-                              {formatDistance(place.distanceKm)}
+                              Show on Map
                             </Text>
-                          </View>
+                          </TouchableOpacity>
+
+                          <TouchableOpacity
+                            style={[
+                              styles.deckCardLogBtn,
+                              { backgroundColor: colors.copper },
+                            ]}
+                            onPress={() => {
+                              router.push({
+                                pathname: "/spot/new",
+                                params: {
+                                  lat: place.latitude?.toString() || "",
+                                  lng: place.longitude?.toString() || "",
+                                  address: place.address || "",
+                                },
+                              });
+                            }}
+                          >
+                            <Text
+                              style={[
+                                styles.deckCardLogBtnText,
+                                { color: colors.primaryText },
+                              ]}
+                            >
+                              Add Dish ₱
+                            </Text>
+                          </TouchableOpacity>
                         </View>
-                        {place.highlightPrice ? (
-                          <Text
-                            style={[
-                              styles.deckCardPrice,
-                              { color: colors.copper },
-                            ]}
-                          >
-                            ₱{place.highlightPrice}
-                          </Text>
-                        ) : null}
                       </View>
-
-                      <Text
-                        style={[
-                          styles.deckCardName,
-                          { color: colors.charcoal },
-                        ]}
-                      >
-                        {place.name}
-                      </Text>
-
-                      <Text
-                        style={[styles.deckCardDetail, { color: colors.muted }]}
-                        numberOfLines={1}
-                      >
-                        {place.highlightDish
-                          ? `${place.highlightDish} • ${
-                              place.address || place.city || "Makati"
-                            }`
-                          : place.address || "Local favorite"}
-                      </Text>
-
-                      <View style={styles.deckCardActionsRow}>
-                        <TouchableOpacity
-                          style={[
-                            styles.deckCardFocusBtn,
-                            {
-                              backgroundColor: colors.sandDark,
-                              borderColor: colors.border,
-                            },
-                          ]}
-                          onPress={() => focusPlaceOnMap(place)}
-                        >
-                          <Ionicons
-                            name="navigate-outline"
-                            size={12}
-                            color={colors.charcoal}
-                          />
-                          <Text
-                            style={[
-                              styles.deckCardFocusBtnText,
-                              { color: colors.charcoal },
-                            ]}
-                          >
-                            Show on Map
-                          </Text>
-                        </TouchableOpacity>
-
-                        <TouchableOpacity
-                          style={[
-                            styles.deckCardLogBtn,
-                            { backgroundColor: colors.copper },
-                          ]}
-                          onPress={() => {
-                            router.push({
-                              pathname: "/spot/new",
-                              params: {
-                                lat: place.latitude?.toString() || "",
-                                lng: place.longitude?.toString() || "",
-                                address: place.address || "",
-                              },
-                            });
-                          }}
-                        >
-                          <Text
-                            style={[
-                              styles.deckCardLogBtnText,
-                              { color: colors.primaryText },
-                            ]}
-                          >
-                            Add Dish ₱
-                          </Text>
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-                  );
-                })
-              )}
-            </ScrollView>
-          </View>
-        )}
-      </Animated.View>
-    )}
-  </View>
-);
+                    );
+                  })
+                )}
+              </ScrollView>
+            </View>
+          )}
+        </Animated.View>
+      )}
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({
@@ -2613,20 +2628,21 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 5 },
   },
 
-  /* Expandable Decision Deck Bottom Sheet */
+  /* Expandable Decision Deck Bottom Sheet (Edge-to-Edge Native Drawer) */
   curatedDecisionSheet: {
     position: "absolute",
-    left: 14,
-    right: 14,
+    left: 0,
+    right: 0,
     zIndex: 30,
-    borderRadius: 22,
-    borderWidth: 1,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    borderTopWidth: 1,
     overflow: "hidden",
     shadowColor: "#000",
-    shadowOpacity: 0.12,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 6,
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: -3 },
+    elevation: 8,
   },
   sheetHandleRow: {
     width: "100%",
@@ -2646,7 +2662,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 14,
+    paddingHorizontal: 16,
     paddingBottom: 8,
   },
   peekLeftSection: {
@@ -2704,7 +2720,7 @@ const styles = StyleSheet.create({
 
   /* State B: Half Mode (Decision Spotlight) */
   halfContentContainer: {
-    paddingHorizontal: 14,
+    paddingHorizontal: 16,
     paddingBottom: 10,
   },
   halfHeaderRow: {
@@ -2900,7 +2916,7 @@ const styles = StyleSheet.create({
   /* State C: Full Mode */
   fullContentContainer: {
     flex: 1,
-    paddingHorizontal: 14,
+    paddingHorizontal: 16,
     paddingBottom: 8,
   },
   fullHeaderRow: {

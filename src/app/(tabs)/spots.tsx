@@ -419,7 +419,7 @@ export default function TabSpotsScreen() {
     }
   };
 
-  const bottomClearance = Math.max(insets.bottom, 12) + 72;
+  const bottomClearance = 50 + Math.max(insets.bottom, 8) + 16;
 
   // --------------------------------------------------------------------------
   // MODERN STREAMLINED THEMED STYLES
