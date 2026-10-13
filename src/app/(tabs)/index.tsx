@@ -6,7 +6,10 @@ import { router, useFocusEffect } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
+  Animated,
   Dimensions,
+  PanResponder,
   Platform,
   ScrollView,
   StyleSheet,
@@ -311,6 +314,13 @@ const GOOGLE_MAPS_STYLE_DARK_LESS_LANDMARKS = [
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
+  const screenHeight = Dimensions.get("window").height;
+  const bottomBarClearance = 50 + Math.max(insets.bottom, 10) + 8;
+  const fullSheetHeight = Math.min(500, screenHeight - insets.top - 130);
+
+  const PEEK_HEIGHT = 72;
+  const HALF_HEIGHT = 310;
+
   const { colors, isDark, toggleTheme } = useTheme();
   const mapRef = useRef<MapView>(null);
   const [userLocation, setUserLocation] = useState<Region | null>(null);
@@ -329,11 +339,125 @@ export default function HomeScreen() {
     "peek",
   );
 
+  const getTargetHeight = (state: "peek" | "half" | "full") => {
+    switch (state) {
+      case "peek":
+        return PEEK_HEIGHT;
+      case "half":
+        return HALF_HEIGHT;
+      case "full":
+        return fullSheetHeight;
+    }
+  };
+
+  const animatedSheetHeight = useRef(new Animated.Value(PEEK_HEIGHT)).current;
+  const currentSheetHeight = useRef(PEEK_HEIGHT);
+
+  useEffect(() => {
+    const id = animatedSheetHeight.addListener(({ value }) => {
+      currentSheetHeight.current = value;
+    });
+    return () => {
+      animatedSheetHeight.removeListener(id);
+    };
+  }, [animatedSheetHeight]);
+
+  // Sync animation whenever sheetState changes programmatically
+  useEffect(() => {
+    const target = getTargetHeight(sheetState);
+    Animated.spring(animatedSheetHeight, {
+      toValue: target,
+      useNativeDriver: false,
+      damping: 24,
+      stiffness: 220,
+      mass: 0.8,
+    }).start();
+  }, [sheetState, fullSheetHeight]);
+
   const cycleSheetState = () => {
     setSheetState((prev) =>
       prev === "peek" ? "half" : prev === "half" ? "full" : "peek",
     );
   };
+
+  const dragStartHeight = useRef(PEEK_HEIGHT);
+
+  const sheetPanResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => false,
+      onMoveShouldSetPanResponder: (_, gestureState) => {
+        return Math.abs(gestureState.dy) > 4;
+      },
+      onPanResponderGrant: () => {
+        dragStartHeight.current = currentSheetHeight.current;
+      },
+      onPanResponderMove: (_, gestureState) => {
+        const nextHeight = dragStartHeight.current - gestureState.dy;
+        const clamped = Math.max(
+          PEEK_HEIGHT - 12,
+          Math.min(fullSheetHeight + 15, nextHeight),
+        );
+        animatedSheetHeight.setValue(clamped);
+
+        if (clamped > (HALF_HEIGHT + fullSheetHeight) / 2) {
+          if (sheetState !== "full") setSheetState("full");
+        } else if (clamped > (PEEK_HEIGHT + HALF_HEIGHT) / 2) {
+          if (sheetState !== "half") setSheetState("half");
+        } else {
+          if (sheetState !== "peek") setSheetState("peek");
+        }
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        const currentH = currentSheetHeight.current;
+        const vy = gestureState.vy;
+
+        let target: "peek" | "half" | "full" = sheetState;
+
+        if (vy < -0.4) {
+          if (currentH < HALF_HEIGHT) {
+            target = "half";
+          } else {
+            target = "full";
+          }
+        } else if (vy > 0.4) {
+          if (currentH > HALF_HEIGHT) {
+            target = "half";
+          } else {
+            target = "peek";
+          }
+        } else {
+          const dPeek = Math.abs(currentH - PEEK_HEIGHT);
+          const dHalf = Math.abs(currentH - HALF_HEIGHT);
+          const dFull = Math.abs(currentH - fullSheetHeight);
+
+          if (dPeek <= dHalf && dPeek <= dFull) {
+            target = "peek";
+          } else if (dHalf <= dFull) {
+            target = "half";
+          } else {
+            target = "full";
+          }
+        }
+
+        setSheetState(target);
+        Animated.spring(animatedSheetHeight, {
+          toValue: getTargetHeight(target),
+          useNativeDriver: false,
+          damping: 24,
+          stiffness: 220,
+          mass: 0.8,
+        }).start();
+      },
+      onPanResponderTerminate: () => {
+        Animated.spring(animatedSheetHeight, {
+          toValue: getTargetHeight(sheetState),
+          useNativeDriver: false,
+          damping: 24,
+          stiffness: 220,
+        }).start();
+      },
+    }),
+  ).current;
 
   // Dedicated Angkas-style Live Reticle Pinning Mode
   const [isPinningMode, setIsPinningMode] = useState(false);
@@ -345,43 +469,200 @@ export default function HomeScreen() {
   const [centerAddress, setCenterAddress] =
     useState<string>("Locating address...");
 
-  // Time-aware greeting
-  const getContextualGreeting = () => {
+  // Category- and time-aware contextual info for Decision Radar & Header
+  const getContextualInfo = (
+    cat: "all" | "food" | "leisure" | "self_care",
+  ) => {
     const hour = new Date().getHours();
+
     if (hour >= 5 && hour < 11) {
-      return {
-        greeting: "Good morning",
-        meal: "Breakfast window",
-        icon: "cafe-outline" as const,
-      };
+      const greeting = "Good morning";
+      switch (cat) {
+        case "food":
+          return {
+            greeting,
+            title: "Breakfast Window",
+            icon: "cafe-outline" as const,
+            color: colors.food,
+            lightColor: colors.foodLight,
+          };
+        case "leisure":
+          return {
+            greeting,
+            title: "Morning Stroll",
+            icon: "compass-outline" as const,
+            color: colors.leisure,
+            lightColor: colors.leisureLight,
+          };
+        case "self_care":
+          return {
+            greeting,
+            title: "Morning Relaxation",
+            icon: "leaf-outline" as const,
+            color: colors.selfCare,
+            lightColor: colors.selfCareLight,
+          };
+        default:
+          return {
+            greeting,
+            title: "Morning Radar",
+            icon: "sunny-outline" as const,
+            color: colors.leisure,
+            lightColor: colors.leisureLight,
+          };
+      }
     } else if (hour >= 11 && hour < 14) {
-      return {
-        greeting: "Good afternoon",
-        meal: "Lunch time",
-        icon: "sunny-outline" as const,
-      };
+      const greeting = "Good afternoon";
+      switch (cat) {
+        case "food":
+          return {
+            greeting,
+            title: "Lunch Time",
+            icon: "restaurant-outline" as const,
+            color: colors.food,
+            lightColor: colors.foodLight,
+          };
+        case "leisure":
+          return {
+            greeting,
+            title: "Midday Break",
+            icon: "compass-outline" as const,
+            color: colors.leisure,
+            lightColor: colors.leisureLight,
+          };
+        case "self_care":
+          return {
+            greeting,
+            title: "Midday Reset",
+            icon: "leaf-outline" as const,
+            color: colors.selfCare,
+            lightColor: colors.selfCareLight,
+          };
+        default:
+          return {
+            greeting,
+            title: "Lunch Window",
+            icon: "restaurant-outline" as const,
+            color: colors.leisure,
+            lightColor: colors.leisureLight,
+          };
+      }
     } else if (hour >= 14 && hour < 18) {
-      return {
-        greeting: "Good afternoon",
-        meal: "Merienda snack",
-        icon: "cafe-outline" as const,
-      };
+      const greeting = "Good afternoon";
+      switch (cat) {
+        case "food":
+          return {
+            greeting,
+            title: "Merienda Snack",
+            icon: "cafe-outline" as const,
+            color: colors.food,
+            lightColor: colors.foodLight,
+          };
+        case "leisure":
+          return {
+            greeting,
+            title: "Afternoon Walk",
+            icon: "compass-outline" as const,
+            color: colors.leisure,
+            lightColor: colors.leisureLight,
+          };
+        case "self_care":
+          return {
+            greeting,
+            title: "Afternoon Recharge",
+            icon: "leaf-outline" as const,
+            color: colors.selfCare,
+            lightColor: colors.selfCareLight,
+          };
+        default:
+          return {
+            greeting,
+            title: "Merienda Window",
+            icon: "cafe-outline" as const,
+            color: colors.leisure,
+            lightColor: colors.leisureLight,
+          };
+      }
     } else if (hour >= 18 && hour < 22) {
-      return {
-        greeting: "Good evening",
-        meal: "Dinner time",
-        icon: "restaurant-outline" as const,
-      };
+      const greeting = "Good evening";
+      switch (cat) {
+        case "food":
+          return {
+            greeting,
+            title: "Dinner Time",
+            icon: "restaurant-outline" as const,
+            color: colors.food,
+            lightColor: colors.foodLight,
+          };
+        case "leisure":
+          return {
+            greeting,
+            title: "Evening Out",
+            icon: "compass-outline" as const,
+            color: colors.leisure,
+            lightColor: colors.leisureLight,
+          };
+        case "self_care":
+          return {
+            greeting,
+            title: "Evening Wind Down",
+            icon: "leaf-outline" as const,
+            color: colors.selfCare,
+            lightColor: colors.selfCareLight,
+          };
+        default:
+          return {
+            greeting,
+            title: "Dinner Window",
+            icon: "restaurant-outline" as const,
+            color: colors.leisure,
+            lightColor: colors.leisureLight,
+          };
+      }
     } else {
-      return {
-        greeting: "Late night",
-        meal: "Night bites",
-        icon: "moon-outline" as const,
-      };
+      const greeting = "Late night";
+      switch (cat) {
+        case "food":
+          return {
+            greeting,
+            title: "Night Bites",
+            icon: "restaurant-outline" as const,
+            color: colors.food,
+            lightColor: colors.foodLight,
+          };
+        case "leisure":
+          return {
+            greeting,
+            title: "Night Stroll",
+            icon: "compass-outline" as const,
+            color: colors.leisure,
+            lightColor: colors.leisureLight,
+          };
+        case "self_care":
+          return {
+            greeting,
+            title: "Night Unwind",
+            icon: "leaf-outline" as const,
+            color: colors.selfCare,
+            lightColor: colors.selfCareLight,
+          };
+        default:
+          return {
+            greeting,
+            title: "Night Window",
+            icon: "moon-outline" as const,
+            color: colors.leisure,
+            lightColor: colors.leisureLight,
+          };
+      }
     }
   };
 
-  const contextInfo = getContextualGreeting();
+  const contextRaw = getContextualInfo(activeCategory);
+  const contextInfo = {
+    ...contextRaw,
+    meal: contextRaw.title,
+  };
 
   // Load User Location
   useEffect(() => {
@@ -535,17 +816,70 @@ export default function HomeScreen() {
         },
         500,
       );
-      if (sheetState === "full") {
+      if (sheetState === "peek") {
         setSheetState("half");
       }
     }
   };
 
-  const heroSpot = places.length > 0 ? places[0] : null;
+  const heroSpot = selectedSpotId
+    ? places.find((p) => p.id === selectedSpotId) ||
+      (places.length > 0 ? places[0] : null)
+    : places.length > 0
+    ? places[0]
+    : null;
 
-  const handleCenterGPS = () => {
-    if (userLocation) {
-      mapRef.current?.animateToRegion(userLocation, 800);
+  const handleCenterGPS = async () => {
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert(
+          "Location Permission Needed",
+          "Spot Mo needs location access to pinpoint where you are right now. Please allow location access in your device settings.",
+          [{ text: "OK" }],
+        );
+        return;
+      }
+
+      const last = await Location.getLastKnownPositionAsync().catch(() => null);
+      if (last) {
+        const fastTarget: Region = {
+          latitude: last.coords.latitude,
+          longitude: last.coords.longitude,
+          latitudeDelta: 0.012,
+          longitudeDelta: 0.012,
+        };
+        setUserLocation(fastTarget);
+        mapRef.current?.animateToRegion(fastTarget, 600);
+      }
+
+      const loc = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.High,
+      });
+
+      const target: Region = {
+        latitude: loc.coords.latitude,
+        longitude: loc.coords.longitude,
+        latitudeDelta: 0.012,
+        longitudeDelta: 0.012,
+      };
+
+      setUserLocation(target);
+      mapRef.current?.animateToRegion(target, 700);
+
+      const [rev] = await Location.reverseGeocodeAsync({
+        latitude: loc.coords.latitude,
+        longitude: loc.coords.longitude,
+      }).catch(() => []);
+
+      if (rev?.city || rev?.subregion) {
+        setCity(rev.city || rev.subregion || "Makati");
+      }
+    } catch (err) {
+      console.warn("Error refreshing GPS location:", err);
+      if (userLocation) {
+        mapRef.current?.animateToRegion(userLocation, 800);
+      }
     }
   };
 
@@ -602,27 +936,32 @@ export default function HomeScreen() {
   };
 
   // Toggle Dedicated Angkas Pinning Mode
-  const handleTogglePinMode = () => {
+  const handleTogglePinMode = async () => {
     if (!isPinningMode) {
       setIsPinningMode(true);
       setSelectedSpotId(null);
-      const target = userLocation || DEFAULT_REGION;
+
+      let targetLat = userLocation?.latitude ?? DEFAULT_REGION.latitude;
+      let targetLng = userLocation?.longitude ?? DEFAULT_REGION.longitude;
+
+      try {
+        const camera = await mapRef.current?.getCamera();
+        if (camera?.center?.latitude && camera?.center?.longitude) {
+          targetLat = camera.center.latitude;
+          targetLng = camera.center.longitude;
+        }
+      } catch {}
+
       setCenterCoord({
-        latitude: target.latitude,
-        longitude: target.longitude,
+        latitude: targetLat,
+        longitude: targetLng,
       });
-      reverseGeocodeCenter(target.latitude, target.longitude);
+      reverseGeocodeCenter(targetLat, targetLng);
     } else {
       setIsPinningMode(false);
     }
   };
 
-  // Custom bottom tab bar height is 50 + Math.max(insets.bottom, 10).
-  // Elevated center orb extends 22pt upwards.
-  // bottomBarClearance positions the Decision Deck cleanly above the dock and orb.
-  const bottomBarClearance = 50 + Math.max(insets.bottom, 10) + 8;
-  const screenHeight = Dimensions.get("window").height;
-  const fullSheetHeight = Math.min(500, screenHeight - insets.top - 130);
 
   if (!userLocation) {
     return (
@@ -692,8 +1031,12 @@ export default function HomeScreen() {
             reverseGeocodeCenter(region.latitude, region.longitude);
           }
         }}
-        onPress={() => {
+        onPress={(e) => {
           if (!isPinningMode) {
+            // Do not clear selection if a marker was pressed
+            if (e?.nativeEvent?.action === "marker-press") {
+              return;
+            }
             setSelectedSpotId(null);
           }
         }}
@@ -709,25 +1052,25 @@ export default function HomeScreen() {
 
           return (
             <Marker
-              key={place.id}
+              key={`${place.id}-${isExpanded ? "pill" : "orb"}-${isSelected ? "sel" : "unsel"}`}
               coordinate={{
                 latitude: place.latitude,
                 longitude: place.longitude,
               }}
-              title={place.name}
-              description={
-                place.highlightDish
-                  ? `${place.highlightDish} • ₱${place.highlightPrice}`
-                  : place.category
-              }
-              onPress={() => {
+              tracksViewChanges={true}
+              onPress={(e) => {
+                e?.stopPropagation?.();
                 if (!isPinningMode) {
-                  setSelectedSpotId(place.id);
-                  focusPlaceOnMap(place);
+                  if (selectedSpotId === place.id) {
+                    setSelectedSpotId(null);
+                  } else {
+                    setSelectedSpotId(place.id);
+                    focusPlaceOnMap(place);
+                  }
                 }
               }}
             >
-              <View style={styles.markerContainer}>
+              <View style={styles.markerContainer} pointerEvents="box-none">
                 {isExpanded ? (
                   <>
                     <View
@@ -889,7 +1232,7 @@ export default function HomeScreen() {
             <View
               style={[
                 styles.greetingIconWrapper,
-                { backgroundColor: colors.leisure },
+                { backgroundColor: contextInfo.color },
               ]}
             >
               <Ionicons
@@ -909,7 +1252,10 @@ export default function HomeScreen() {
               </Text>
               <View style={styles.greetingMetaRow}>
                 <View
-                  style={[styles.pulseDot, { backgroundColor: colors.food }]}
+                  style={[
+                    styles.pulseDot,
+                    { backgroundColor: contextInfo.color },
+                  ]}
                 />
                 <Text
                   style={[
@@ -917,7 +1263,7 @@ export default function HomeScreen() {
                     { color: colors.headerCapsuleSubtext },
                   ]}
                 >
-                  {contextInfo.meal} • {city}
+                  {contextInfo.title} • {city}
                 </Text>
               </View>
             </View>
@@ -1051,7 +1397,7 @@ export default function HomeScreen() {
       </View>
 
       {/* 3. Floating Satellite Controls */}
-      <View
+      <Animated.View
         style={[
           styles.satelliteControlsWrapper,
           isPinningMode
@@ -1065,10 +1411,10 @@ export default function HomeScreen() {
                   right: 16,
                 }
               : {
-                  bottom:
-                    bottomBarClearance +
-                    (sheetState === "peek" ? 72 : 310) +
-                    12,
+                  bottom: Animated.add(
+                    animatedSheetHeight,
+                    bottomBarClearance + 12,
+                  ),
                   right: 16,
                 },
         ]}
@@ -1126,7 +1472,7 @@ export default function HomeScreen() {
             }
           />
         </TouchableOpacity>
-      </View>
+      </Animated.View>
 
       {/* 4. Angkas Pinning Mode Confirmation Dock */}
       {isPinningMode && (
@@ -1224,61 +1570,62 @@ export default function HomeScreen() {
 
       {/* 5. Expandable Decision Deck Bottom Sheet */}
       {!isPinningMode && (
-        <View
+        <Animated.View
           style={[
             styles.curatedDecisionSheet,
-          {
-            bottom: bottomBarClearance,
-            height:
-              sheetState === "peek"
-                ? 72
-                : sheetState === "half"
-                  ? 310
-                  : fullSheetHeight,
-            backgroundColor: colors.cardGlass,
-            borderColor: colors.border,
-          },
-        ]}
-      >
-        {/* Grab Handle Header (Tap to cycle state) */}
-        <TouchableOpacity
-          onPress={cycleSheetState}
-          activeOpacity={0.8}
-          style={styles.sheetHandleRow}
+            {
+              bottom: bottomBarClearance,
+              height: animatedSheetHeight,
+              backgroundColor: colors.cardGlass,
+              borderColor: colors.border,
+            },
+          ]}
         >
+          {/* Grab Handle Header (Draggable + Tap to cycle state) */}
           <View
-            style={[
-              styles.sheetHandleBar,
-              { backgroundColor: colors.sandDark },
-            ]}
-          />
-        </TouchableOpacity>
-
-        {/* STATE A: PEEK STATE (72pt) */}
-        {sheetState === "peek" && (
-          <TouchableOpacity
-            style={styles.peekContentRow}
-            onPress={() => setSheetState("half")}
-            activeOpacity={0.85}
+            style={styles.sheetHandleRow}
+            {...sheetPanResponder.panHandlers}
           >
+            <TouchableOpacity
+              onPress={cycleSheetState}
+              activeOpacity={0.7}
+              hitSlop={{ top: 12, bottom: 12, left: 40, right: 40 }}
+            >
+              <View
+                style={[
+                  styles.sheetHandleBar,
+                  { backgroundColor: colors.sandDark },
+                ]}
+              />
+            </TouchableOpacity>
+          </View>
+
+          {/* STATE A: PEEK STATE (72pt) */}
+          {sheetState === "peek" && (
+            <View {...sheetPanResponder.panHandlers}>
+              <TouchableOpacity
+                style={styles.peekContentRow}
+                onPress={() => setSheetState("half")}
+                activeOpacity={0.85}
+              >
             <View style={styles.peekLeftSection}>
               <View
                 style={[
                   styles.peekContextIconBox,
-                  { backgroundColor: colors.leisureLight },
+                  { backgroundColor: contextInfo.lightColor },
                 ]}
               >
                 <Ionicons
                   name={contextInfo.icon}
                   size={14}
-                  color={colors.leisure}
+                  color={contextInfo.color}
                 />
               </View>
               <View>
                 <Text
                   style={[styles.peekMealTitle, { color: colors.charcoal }]}
                 >
-                  {contextInfo.meal}
+                  {contextInfo.title}
                 </Text>
                 <Text
                   style={[styles.peekSpotsCountText, { color: colors.muted }]}
@@ -1329,30 +1676,34 @@ export default function HomeScreen() {
                 <Octicons name="chevron-up" size={14} color={colors.charcoal} />
               </View>
             </View>
-          </TouchableOpacity>
-        )}
+              </TouchableOpacity>
+            </View>
+          )}
 
-        {/* STATE B: HALF STATE - DECISION SPOTLIGHT (310pt) */}
-        {sheetState === "half" && (
-          <View style={styles.halfContentContainer}>
-            {/* Header bar */}
-            <View style={styles.halfHeaderRow}>
+          {/* STATE B: HALF STATE - DECISION SPOTLIGHT (310pt) */}
+          {sheetState === "half" && (
+            <View style={styles.halfContentContainer}>
+              {/* Header bar */}
+              <View
+                style={styles.halfHeaderRow}
+                {...sheetPanResponder.panHandlers}
+              >
               <View style={styles.feedTitleLeft}>
                 <View
                   style={[
                     styles.copperDot,
-                    { backgroundColor: colors.leisure },
+                    { backgroundColor: contextInfo.color },
                   ]}
                 />
                 <Text style={[styles.feedTitle, { color: colors.charcoal }]}>
-                  DECISION RADAR
+                  {contextInfo.title.toUpperCase()}
                 </Text>
                 <Text
                   style={[
                     styles.cityPill,
                     {
-                      backgroundColor: colors.leisureLight,
-                      color: colors.leisure,
+                      backgroundColor: contextInfo.lightColor,
+                      color: contextInfo.color,
                     },
                   ]}
                 >
@@ -1607,7 +1958,7 @@ export default function HomeScreen() {
               style={styles.halfFooterBar}
               onPress={() => setSheetState("full")}
             >
-              <Text style={[styles.halfFooterText, { color: colors.leisure }]}>
+              <Text style={[styles.halfFooterText, { color: contextInfo.color }]}>
                 Browse all {places.length} radar spots in full deck →
               </Text>
             </TouchableOpacity>
@@ -1618,12 +1969,21 @@ export default function HomeScreen() {
         {sheetState === "full" && (
           <View style={styles.fullContentContainer}>
             {/* Header */}
-            <View style={styles.fullHeaderRow}>
+            <View
+              style={styles.fullHeaderRow}
+              {...sheetPanResponder.panHandlers}
+            >
               <View style={styles.fullTitleRow}>
+                <View
+                  style={[
+                    styles.copperDot,
+                    { backgroundColor: contextInfo.color },
+                  ]}
+                />
                 <Text
                   style={[styles.fullTitleText, { color: colors.charcoal }]}
                 >
-                  RADAR DECISION DECK
+                  {contextInfo.title.toUpperCase()}
                 </Text>
                 <View
                   style={[
@@ -1826,7 +2186,7 @@ export default function HomeScreen() {
             </ScrollView>
           </View>
         )}
-      </View>
+      </Animated.View>
     )}
   </View>
 );
@@ -1884,10 +2244,11 @@ const styles = StyleSheet.create({
     marginRight: 2,
   },
   markerPlaceName: {
-    fontFamily: FontFamily.serifSemiBold,
+    fontFamily: FontFamily.sansSemiBold,
     color: "#FFFFFF",
     fontSize: 11.5,
-    maxWidth: 105,
+    maxWidth: 110,
+    letterSpacing: -0.1,
   },
   markerPriceTag: {
     fontFamily: FontFamily.sansBold,
