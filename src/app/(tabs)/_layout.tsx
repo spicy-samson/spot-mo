@@ -2,6 +2,7 @@ import { NativeTabs } from "expo-router/unstable-native-tabs";
 import { useState } from "react";
 import { DynamicColorIOS, Platform } from "react-native";
 
+import { Colors } from "@/constants/theme";
 import { TabBarContext } from "@/context/TabBarContext";
 
 export default function TabLayout() {
@@ -19,7 +20,7 @@ export default function TabLayout() {
           }),
         }}
         tintColor={Platform.select({
-          ios: DynamicColorIOS({ dark: "#38bdf8", light: "#0284c7" }),
+          ios: DynamicColorIOS({ dark: "#F59E0B", light: "#B45309" }),
         })}
       >
         {/* 1. Home / Map & Decisions */}
