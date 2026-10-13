@@ -1,10 +1,16 @@
+import { expo } from "@/../db/client";
+import Octicons from "@expo/vector-icons/Octicons";
+import { useDrizzleStudio } from "expo-drizzle-studio-plugin";
 import * as Location from "expo-location";
 import { useEffect, useRef, useState } from "react";
-import { useDrizzleStudio } from "expo-drizzle-studio-plugin";
-import { ActivityIndicator, StyleSheet, View } from "react-native";
-import MapView, {Region} from "react-native-maps";
+import {
+  ActivityIndicator,
+  StyleSheet,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import MapView, { Marker, Region } from "react-native-maps";
 
-import { expo } from "@/../db/client";
 // Default fallback region (e.g. Metro Manila) in case permission is denied
 const DEFAULT_REGION: Region = {
   latitude: 14.5547,
@@ -15,41 +21,63 @@ const DEFAULT_REGION: Region = {
 
 export default function Index() {
   useDrizzleStudio(expo);
+  const handlePress = () => {
+    alert("Floating Button Pressed!");
+  };
 
   const mapRef = useRef<MapView>(null);
-  const [initialRegion, setInitialRegion] = useState<Region | null>(null);
+  const [region, setRegion] = useState<Region | null>(null);
+
   useEffect(() => {
     async function getCurrentLocation() {
-      // 1. Request foreground location permission
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== "granted") {
-        setInitialRegion(DEFAULT_REGION);
+        setRegion(DEFAULT_REGION);
         return;
       }
-      // 2. Get current device GPS coordinates
       const location = await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.Balanced,
       });
-      // 3. Set the initial region centered on the user
-      setInitialRegion({
+      const userRegion: Region = {
         latitude: location.coords.latitude,
         longitude: location.coords.longitude,
-        latitudeDelta: 0.015, // Zoomed in to neighborhood level (~1.5 km)
+        latitudeDelta: 0.015,
         longitudeDelta: 0.015,
-      });
+      };
+      setRegion(userRegion);
+      mapRef.current?.animateToRegion(userRegion, 1000);
     }
     getCurrentLocation();
   }, []);
 
+  // Show loader until location is determined so MapView doesn't mount in San Francisco
+  if (!region) {
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator size="large" color="#007AFF" />
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
+      <TouchableOpacity style={styles.floatingButton} onPress={handlePress}>
+        <Octicons name="diff-added" size={24} color="white" />
+      </TouchableOpacity>
       <MapView
         ref={mapRef}
         style={styles.map}
-        initialRegion={initialRegion!}
+        initialRegion={region}
         showsUserLocation={true}
         showsMyLocationButton={true}
-      />
+      >
+        <Marker
+          coordinate={region!}
+          title="Your Location"
+          description="You are here"
+          pinColor="red"
+        />
+      </MapView>
     </View>
   );
 }
@@ -58,8 +86,29 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  center: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
   map: {
     width: "100%",
     height: "100%",
+  },
+  floatingButton: {
+    backgroundColor: "#007AFF", // Replace with your primary color
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    justifyContent: "center",
+    alignItems: "center",
+    position: "absolute",
+    bottom: 40,
+    right: 30,
+    elevation: 5, // For Android shadow
+    shadowColor: "#000", // For iOS shadow
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
   },
 });
