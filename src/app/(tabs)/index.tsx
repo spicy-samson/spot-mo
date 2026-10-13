@@ -335,12 +335,15 @@ export default function HomeScreen() {
     );
   };
 
-  // Pending Pin on map
-  const [pendingPin, setPendingPin] = useState<{
+  // Dedicated Angkas-style Live Reticle Pinning Mode
+  const [isPinningMode, setIsPinningMode] = useState(false);
+  const [isPanningMap, setIsPanningMap] = useState(false);
+  const [centerCoord, setCenterCoord] = useState<{
     latitude: number;
     longitude: number;
-    address?: string;
   } | null>(null);
+  const [centerAddress, setCenterAddress] =
+    useState<string>("Locating address...");
 
   // Time-aware greeting
   const getContextualGreeting = () => {
@@ -423,8 +426,8 @@ export default function HomeScreen() {
   useFocusEffect(
     useCallback(() => {
       loadPlaces();
-      // Clear pending pin whenever user navigates back to map
-      setPendingPin(null);
+      // Exit pinning mode whenever user navigates back to map
+      setIsPinningMode(false);
     }, [activeCategory]),
   );
 
@@ -581,56 +584,36 @@ export default function HomeScreen() {
     }
   };
 
-  // Map tap: drop or move pending pin, and reverse geocode
-  const handleMapPress = async (coord: {
-    latitude: number;
-    longitude: number;
-  }) => {
-    setPendingPin({
-      latitude: coord.latitude,
-      longitude: coord.longitude,
-      address: "Locating address...",
-    });
-
+  // Reverse geocoding for Angkas Center Reticle
+  const reverseGeocodeCenter = async (latitude: number, longitude: number) => {
     try {
-      const [rev] = await Location.reverseGeocodeAsync(coord);
+      const [rev] = await Location.reverseGeocodeAsync({ latitude, longitude });
       if (rev) {
         const street = rev.street || rev.name || rev.district || "";
         const c = rev.city || rev.subregion || rev.region || "Makati";
         const addr = street ? `${street}, ${c}` : c;
-        setPendingPin({
-          latitude: coord.latitude,
-          longitude: coord.longitude,
-          address: addr,
-        });
+        setCenterAddress(addr);
       }
     } catch {
-      setPendingPin({
-        latitude: coord.latitude,
-        longitude: coord.longitude,
-        address: `Pin (${coord.latitude.toFixed(4)}, ${coord.longitude.toFixed(4)})`,
-      });
+      setCenterAddress(
+        `Spot at (${latitude.toFixed(4)}, ${longitude.toFixed(4)})`,
+      );
     }
   };
 
-  // Floating + button action
-  const handleFloatingPinPress = () => {
-    if (pendingPin) {
-      router.push({
-        pathname: "/spot/new",
-        params: {
-          lat: pendingPin.latitude.toString(),
-          lng: pendingPin.longitude.toString(),
-          address: pendingPin.address || "",
-        },
+  // Toggle Dedicated Angkas Pinning Mode
+  const handleTogglePinMode = () => {
+    if (!isPinningMode) {
+      setIsPinningMode(true);
+      setSelectedSpotId(null);
+      const target = userLocation || DEFAULT_REGION;
+      setCenterCoord({
+        latitude: target.latitude,
+        longitude: target.longitude,
       });
-    } else if (userLocation) {
-      handleMapPress({
-        latitude: userLocation.latitude,
-        longitude: userLocation.longitude,
-      });
+      reverseGeocodeCenter(target.latitude, target.longitude);
     } else {
-      router.push("/spot/new");
+      setIsPinningMode(false);
     }
   };
 
@@ -676,12 +659,26 @@ export default function HomeScreen() {
             ? GOOGLE_MAPS_STYLE_DARK_LESS_LANDMARKS
             : GOOGLE_MAPS_STYLE_LESS_LANDMARKS
         }
+        onRegionChange={() => {
+          if (isPinningMode && !isPanningMap) {
+            setIsPanningMap(true);
+          }
+        }}
         onRegionChangeComplete={(region) => {
           setMapZoomDelta(region.latitudeDelta);
+          if (isPinningMode) {
+            setIsPanningMap(false);
+            setCenterCoord({
+              latitude: region.latitude,
+              longitude: region.longitude,
+            });
+            reverseGeocodeCenter(region.latitude, region.longitude);
+          }
         }}
-        onPress={(e) => {
-          setSelectedSpotId(null);
-          handleMapPress(e.nativeEvent.coordinate);
+        onPress={() => {
+          if (!isPinningMode) {
+            setSelectedSpotId(null);
+          }
         }}
       >
         {/* Concept 4: Adaptive Zoom Orbs for Pinned Spots */}
@@ -706,8 +703,10 @@ export default function HomeScreen() {
                   : place.category
               }
               onPress={() => {
-                setSelectedSpotId(place.id);
-                focusPlaceOnMap(place);
+                if (!isPinningMode) {
+                  setSelectedSpotId(place.id);
+                  focusPlaceOnMap(place);
+                }
               }}
             >
               <View style={styles.markerContainer}>
@@ -720,10 +719,25 @@ export default function HomeScreen() {
                         isSelected && styles.selectedMarkerPill,
                       ]}
                     >
-                      <View style={styles.markerIconCircle}>
-                        <Ionicons name={badge.icon} size={11} color="#FFFFFF" />
+                      <View
+                        style={[
+                          styles.markerIconCircle,
+                          isDark && { backgroundColor: "rgba(0, 0, 0, 0.16)" },
+                        ]}
+                      >
+                        <Ionicons
+                          name={badge.icon}
+                          size={11}
+                          color={isDark ? "#1C1917" : "#FFFFFF"}
+                        />
                       </View>
-                      <Text style={styles.markerPlaceName} numberOfLines={1}>
+                      <Text
+                        style={[
+                          styles.markerPlaceName,
+                          isDark && { color: "#1C1917" },
+                        ]}
+                        numberOfLines={1}
+                      >
                         {place.name}
                       </Text>
                       {place.highlightPrice !== undefined && (
@@ -763,10 +777,17 @@ export default function HomeScreen() {
                       <View
                         style={[
                           styles.categoryOrb,
-                          { backgroundColor: badge.color },
+                          {
+                            backgroundColor: badge.color,
+                            borderColor: isDark ? "#1C1917" : "#FFFFFF",
+                          },
                         ]}
                       >
-                        <Ionicons name={badge.icon} size={13} color="#FFFFFF" />
+                        <Ionicons
+                          name={badge.icon}
+                          size={13}
+                          color={isDark ? "#1C1917" : "#FFFFFF"}
+                        />
                       </View>
                     </View>
                     <View
@@ -778,39 +799,52 @@ export default function HomeScreen() {
             </Marker>
           );
         })}
-
-        {/* Pending Pin Marker (Tactile bent pin on the map) */}
-        {pendingPin && (
-          <Marker
-            coordinate={{
-              latitude: pendingPin.latitude,
-              longitude: pendingPin.longitude,
-            }}
-            anchor={{ x: 0.5, y: 0.95 }}
-          >
-            <View style={styles.bentPinGraphic}>
-              <View
-                style={[
-                  styles.bentPinHead,
-                  {
-                    backgroundColor: colors.copper,
-                    borderColor: isDark ? "#1C1917" : "#FFFFFF",
-                  },
-                ]}
-              >
-                <Octicons name="pin" size={17} color={colors.primaryText} />
-              </View>
-              <View
-                style={[
-                  styles.bentPinStem,
-                  { backgroundColor: colors.copperDark },
-                ]}
-              />
-              <View style={styles.bentPinGroundShadow} />
-            </View>
-          </Marker>
-        )}
       </MapView>
+
+      {/* Angkas Live Center Reticle Overlay (Screen Center) */}
+      {isPinningMode && (
+        <View style={styles.centerReticleContainer} pointerEvents="none">
+          <View style={styles.centerReticleTooltip}>
+            <Text style={styles.centerReticleTooltipText}>
+              {isPanningMap ? "Aiming target..." : "Target centered"}
+            </Text>
+          </View>
+          <View
+            style={[
+              styles.centerReticlePinWrapper,
+              isPanningMap && styles.centerReticlePinLifting,
+            ]}
+          >
+            <View
+              style={[
+                styles.centerReticleHead,
+                {
+                  backgroundColor: colors.copper,
+                  borderColor: isDark ? "#1C1917" : "#FFFFFF",
+                },
+              ]}
+            >
+              <Octicons
+                name="location"
+                size={17}
+                color={colors.primaryText}
+              />
+            </View>
+            <View
+              style={[
+                styles.centerReticleStem,
+                { backgroundColor: isDark ? "#78716C" : colors.copperDark },
+              ]}
+            />
+          </View>
+          <View
+            style={[
+              styles.centerReticleShadow,
+              isPanningMap && styles.centerReticleShadowLifting,
+            ]}
+          />
+        </View>
+      )}
 
       {/* 2. Floating Top Header */}
       <View style={styles.topHeaderWrapper}>
@@ -828,7 +862,11 @@ export default function HomeScreen() {
                 { backgroundColor: colors.leisure },
               ]}
             >
-              <Ionicons name={contextInfo.icon} size={14} color="#FFFFFF" />
+              <Ionicons
+                name={contextInfo.icon}
+                size={14}
+                color={isDark ? "#1C1917" : "#FFFFFF"}
+              />
             </View>
             <View style={styles.greetingTextColumn}>
               <Text
@@ -946,9 +984,13 @@ export default function HomeScreen() {
                   size={12}
                   color={
                     isActive
-                      ? c.id === "all"
-                        ? colors.primaryText
-                        : "#FFFFFF"
+                      ? isDark
+                        ? c.id === "all"
+                          ? colors.primaryText
+                          : "#1C1917"
+                        : c.id === "all"
+                          ? colors.primaryText
+                          : "#FFFFFF"
                       : colors.charcoal
                   }
                   style={{ marginRight: 4 }}
@@ -958,9 +1000,13 @@ export default function HomeScreen() {
                     styles.filterPillText,
                     {
                       color: isActive
-                        ? c.id === "all"
-                          ? colors.primaryText
-                          : "#FFFFFF"
+                        ? isDark
+                          ? c.id === "all"
+                            ? colors.primaryText
+                            : "#1C1917"
+                          : c.id === "all"
+                            ? colors.primaryText
+                            : "#FFFFFF"
                         : colors.charcoal,
                       fontWeight: isActive ? "700" : "600",
                     },
@@ -978,19 +1024,23 @@ export default function HomeScreen() {
       <View
         style={[
           styles.satelliteControlsWrapper,
-          sheetState === "full"
+          isPinningMode
             ? {
-                top: insets.top + 104,
+                bottom: bottomBarClearance + 148,
                 right: 16,
               }
-            : {
-                bottom:
-                  bottomBarClearance +
-                  (sheetState === "peek" ? 72 : 310) +
-                  (pendingPin ? 66 : 0) +
-                  12,
-                right: 16,
-              },
+            : sheetState === "full"
+              ? {
+                  top: insets.top + 104,
+                  right: 16,
+                }
+              : {
+                  bottom:
+                    bottomBarClearance +
+                    (sheetState === "peek" ? 72 : 310) +
+                    12,
+                  right: 16,
+                },
         ]}
       >
         {/* Recenter Location Button */}
@@ -998,117 +1048,144 @@ export default function HomeScreen() {
           style={[
             styles.recenterButton,
             {
-              backgroundColor: colors.satelliteBtnBg,
-              borderColor: colors.border,
+              backgroundColor: isDark ? "#27272A" : colors.satelliteBtnBg,
+              borderColor: isDark ? "#3F3F46" : colors.border,
             },
           ]}
           onPress={handleCenterGPS}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
-          <Octicons
-            name="cross-reference"
-            size={18}
-            color={colors.satelliteBtnIcon}
+          <Ionicons
+            name="locate"
+            size={20}
+            color={isDark ? "#F5F5F4" : colors.satelliteBtnIcon}
           />
         </TouchableOpacity>
 
-        {/* Big Anchor Pin Button */}
+        {/* Pin Spot Mode Toggle Button */}
         <TouchableOpacity
           style={[
             styles.pinSpotFloatingButton,
             {
-              backgroundColor: colors.fabBg,
-              shadowColor: colors.fabBg,
+              backgroundColor: isPinningMode
+                ? isDark
+                  ? "#27272A"
+                  : "#1C1917"
+                : isDark
+                  ? "#F5F5F4"
+                  : colors.fabBg,
+              shadowColor: isDark ? "#000000" : colors.fabBg,
+              borderColor: isPinningMode && isDark ? "#3F3F46" : undefined,
+              borderWidth: isPinningMode && isDark ? 1.5 : 0,
             },
           ]}
-          onPress={handleFloatingPinPress}
+          onPress={handleTogglePinMode}
           activeOpacity={0.9}
         >
-          <Octicons name="plus" size={24} color={colors.fabIcon} />
+          <Octicons
+            name={isPinningMode ? "x" : "plus"}
+            size={24}
+            color={
+              isPinningMode
+                ? isDark
+                  ? "#F5F5F4"
+                  : "#FFFFFF"
+                : isDark
+                  ? "#1C1917"
+                  : colors.fabIcon
+            }
+          />
         </TouchableOpacity>
       </View>
 
-      {/* 4. Pending Spot Pin Action Banner */}
-      {pendingPin && (
+      {/* 4. Angkas Pinning Mode Confirmation Dock */}
+      {isPinningMode && (
         <View
           style={[
-            styles.pendingPinBanner,
+            styles.pinningDockCard,
             {
-              bottom:
-                bottomBarClearance +
-                (sheetState === "peek"
-                  ? 72
-                  : sheetState === "half"
-                    ? 310
-                    : fullSheetHeight) +
-                8,
               backgroundColor: colors.cardGlass,
               borderColor: colors.border,
+              bottom: bottomBarClearance + 8,
             },
           ]}
         >
-          <View style={styles.pendingPinBannerLeft}>
-            <View
-              style={[
-                styles.pendingPinBannerDot,
-                { backgroundColor: colors.copper },
-              ]}
-            >
-              <Octicons name="location" size={13} color={colors.primaryText} />
-            </View>
-            <View style={{ flex: 1 }}>
+          <View style={styles.pinningDockHeader}>
+            <View style={styles.pinningTag}>
+              <View
+                style={[
+                  styles.pinningDot,
+                  { backgroundColor: colors.copper },
+                ]}
+              />
               <Text
-                style={[styles.pendingPinBannerTitle, { color: colors.copper }]}
+                style={[styles.pinningTagText, { color: colors.copper }]}
               >
-                Selected Pin
+                AIMING SPOT
               </Text>
+            </View>
+            {centerCoord && (
               <Text
                 style={[
-                  styles.pendingPinBannerAddress,
-                  { color: colors.charcoal },
+                  styles.pinningCoordsText,
+                  { color: colors.subtle },
                 ]}
-                numberOfLines={1}
               >
-                {pendingPin.address}
+                {centerCoord.latitude.toFixed(4)}°, {centerCoord.longitude.toFixed(4)}°
               </Text>
-            </View>
+            )}
           </View>
 
-          <View style={styles.pendingPinBannerActions}>
+          <Text
+            style={[styles.pinningAddressText, { color: colors.charcoal }]}
+            numberOfLines={1}
+          >
+            {centerAddress}
+          </Text>
+
+          <View style={styles.pinningActionsRow}>
             <TouchableOpacity
               style={[
-                styles.pendingPinDismissBtn,
+                styles.pinningCancelBtn,
                 { backgroundColor: colors.sandDark },
               ]}
-              onPress={() => setPendingPin(null)}
-              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              onPress={() => setIsPinningMode(false)}
             >
-              <Octicons name="x" size={16} color={colors.subtle} />
+              <Text
+                style={[
+                  styles.pinningCancelBtnText,
+                  { color: colors.charcoal },
+                ]}
+              >
+                Cancel
+              </Text>
             </TouchableOpacity>
 
             <TouchableOpacity
               style={[
-                styles.pendingPinSaveBtn,
+                styles.pinningConfirmBtn,
                 { backgroundColor: colors.copper },
               ]}
-              onPress={() =>
-                router.push({
-                  pathname: "/spot/new",
-                  params: {
-                    lat: pendingPin.latitude.toString(),
-                    lng: pendingPin.longitude.toString(),
-                    address: pendingPin.address || "",
-                  },
-                })
-              }
+              onPress={() => {
+                if (centerCoord) {
+                  router.push({
+                    pathname: "/spot/new",
+                    params: {
+                      lat: centerCoord.latitude.toString(),
+                      lng: centerCoord.longitude.toString(),
+                      address: centerAddress,
+                    },
+                  });
+                }
+              }}
             >
               <Text
                 style={[
-                  styles.pendingPinSaveBtnText,
+                  styles.pinningConfirmBtnText,
                   { color: colors.primaryText },
                 ]}
               >
-                Pin Spot →
+                Pin Spot Here →
               </Text>
             </TouchableOpacity>
           </View>
@@ -1116,9 +1193,10 @@ export default function HomeScreen() {
       )}
 
       {/* 5. Expandable Decision Deck Bottom Sheet */}
-      <View
-        style={[
-          styles.curatedDecisionSheet,
+      {!isPinningMode && (
+        <View
+          style={[
+            styles.curatedDecisionSheet,
           {
             bottom: bottomBarClearance,
             height:
@@ -1384,8 +1462,8 @@ export default function HomeScreen() {
                     ]}
                     onPress={() => focusPlaceOnMap(heroSpot)}
                   >
-                    <Octicons
-                      name="cross-reference"
+                    <Ionicons
+                      name="navigate-outline"
                       size={13}
                       color={colors.charcoal}
                     />
@@ -1670,8 +1748,8 @@ export default function HomeScreen() {
                           ]}
                           onPress={() => focusPlaceOnMap(place)}
                         >
-                          <Octicons
-                            name="cross-reference"
+                          <Ionicons
+                            name="navigate-outline"
                             size={12}
                             color={colors.charcoal}
                           />
@@ -1719,8 +1797,9 @@ export default function HomeScreen() {
           </View>
         )}
       </View>
-    </View>
-  );
+    )}
+  </View>
+);
 }
 
 const styles = StyleSheet.create({
@@ -1830,111 +1909,150 @@ const styles = StyleSheet.create({
     zIndex: -1,
   },
 
-  /* Pending / Bent Pin Graphic */
-  bentPinGraphic: {
-    alignItems: "center",
-    transform: [{ rotate: "-8deg" }],
-  },
-  bentPinHead: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: Colors.terracotta,
+  /* Angkas Center Reticle Graphic (Screen Center) */
+  centerReticleContainer: {
+    position: "absolute",
+    top: "50%",
+    left: "50%",
+    transform: [{ translateX: -18 }, { translateY: -44 }],
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 2,
-    borderColor: "#FFFFFF",
-    shadowColor: Colors.terracotta,
-    shadowOpacity: 0.5,
+    zIndex: 50,
+  },
+  centerReticleTooltip: {
+    backgroundColor: "#1C1917",
+    paddingHorizontal: 9,
+    paddingVertical: 3.5,
+    borderRadius: 10,
+    marginBottom: 6,
+    shadowColor: "#000",
+    shadowOpacity: 0.25,
     shadowRadius: 6,
     shadowOffset: { width: 0, height: 2 },
   },
-  bentPinStem: {
-    width: 3,
-    height: 10,
-    backgroundColor: Colors.copperDark,
-    borderRadius: 1.5,
-    marginTop: -2,
+  centerReticleTooltipText: {
+    fontFamily: FontFamily.sansSemiBold,
+    fontSize: 10,
+    color: "#FAF6EF",
+    letterSpacing: 0.2,
   },
-  bentPinGroundShadow: {
-    width: 12,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: "rgba(0,0,0,0.25)",
+  centerReticlePinWrapper: {
+    alignItems: "center",
+    transform: [{ translateY: 0 }],
+  },
+  centerReticlePinLifting: {
+    transform: [{ translateY: -14 }],
+  },
+  centerReticleHead: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2.5,
+    borderColor: "#FFFFFF",
+    shadowColor: Colors.copper,
+    shadowOpacity: 0.45,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 6,
+  },
+  centerReticleStem: {
+    width: 3.5,
+    height: 12,
+    borderRadius: 1.75,
+    marginTop: -1,
+  },
+  centerReticleShadow: {
+    width: 14,
+    height: 5,
+    borderRadius: 2.5,
+    backgroundColor: "rgba(0, 0, 0, 0.28)",
     marginTop: 1,
+    transform: [{ scale: 1 }],
+    opacity: 1,
+  },
+  centerReticleShadowLifting: {
+    transform: [{ scale: 0.55 }],
+    opacity: 0.15,
   },
 
-  /* Pending Pin Floating Action Banner */
-  pendingPinBanner: {
+  /* Angkas Pin Confirmation Dock */
+  pinningDockCard: {
     position: "absolute",
     left: 14,
     right: 14,
-    zIndex: 35,
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
+    borderRadius: 22,
+    borderWidth: 1,
+    padding: 14,
+    zIndex: 60,
+    shadowColor: "#000",
+    shadowOpacity: 0.18,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 8,
+  },
+  pinningDockHeader: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    borderWidth: 1,
-    borderColor: Colors.border,
-    shadowColor: "#000",
-    shadowOpacity: 0.15,
-    shadowRadius: 10,
+    marginBottom: 4,
+  },
+  pinningTag: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+  },
+  pinningDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  pinningTagText: {
+    fontFamily: FontFamily.sansBold,
+    fontSize: 9.5,
+    letterSpacing: 0.8,
+  },
+  pinningCoordsText: {
+    fontFamily: FontFamily.sansRegular,
+    fontSize: 10,
+  },
+  pinningAddressText: {
+    fontFamily: FontFamily.serifSemiBold,
+    fontSize: 14.5,
+    marginBottom: 12,
+  },
+  pinningActionsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  pinningCancelBtn: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  pinningCancelBtnText: {
+    fontFamily: FontFamily.sansSemiBold,
+    fontSize: 12,
+  },
+  pinningConfirmBtn: {
+    flex: 2,
+    paddingVertical: 10,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: Colors.copper,
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
     shadowOffset: { width: 0, height: 3 },
   },
-  pendingPinBannerLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    flex: 1,
-    marginRight: 8,
-  },
-  pendingPinBannerDot: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: Colors.terracotta,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  pendingPinBannerTitle: {
-    fontFamily: FontFamily.serifSemiBold,
-    fontSize: 12,
-    color: Colors.copper,
-    letterSpacing: -0.1,
-  },
-  pendingPinBannerAddress: {
-    fontFamily: FontFamily.sansRegular,
-    fontSize: 11,
-    color: Colors.charcoal,
-    marginTop: 1,
-  },
-  pendingPinBannerActions: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  pendingPinDismissBtn: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: Colors.sand,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  pendingPinSaveBtn: {
-    backgroundColor: Colors.terracotta,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-    alignItems: "center",
-  },
-  pendingPinSaveBtnText: {
+  pinningConfirmBtnText: {
     fontFamily: FontFamily.sansBold,
+    fontSize: 12.5,
     color: "#FFFFFF",
-    fontSize: 11,
   },
 
   /* Floating Top Header */
