@@ -1,11 +1,13 @@
-import { router } from "expo-router";
-import { useMemo, useRef, useState } from "react";
+import { router, useFocusEffect } from "expo-router";
+import { useCallback, useMemo, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   Animated,
   FlatList,
   NativeScrollEvent,
   NativeSyntheticEvent,
   Platform,
+  RefreshControl,
   ScrollView,
   Text,
   TextInput,
@@ -14,7 +16,11 @@ import {
 } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import Octicons from "@expo/vector-icons/Octicons";
+import { desc, eq } from "drizzle-orm";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+import { db } from "@/../db/client";
+import { offeringsTable, placesTable, visitsTable } from "@/../db/schema";
 
 import {
   FontFamily,
@@ -56,6 +62,11 @@ export interface SpotItem {
   address: string | null;
   city: string | null;
   notes: string | null;
+  paymentMethods?: ("Cash" | "Gcash" | "QRPH" | "Card")[] | null;
+  scheduleOpen?: string | null;
+  scheduleClose?: string | null;
+  contactNumber?: string | null;
+  contactPerson?: string | null;
   isFavorite: boolean;
   isArchived: boolean;
   createdAt: string;
@@ -64,61 +75,34 @@ export interface SpotItem {
   visits: VisitDraft[];
 }
 
-// ============================================================================
-// SCHEMA-COMPLIANT DUMMY DATA FOR UI DRAFTING
-// ============================================================================
-const DUMMY_SPOTS: SpotItem[] = [
-  {
-    id: "place-1",
-    name: "Yardstick Coffee",
-    category: "food",
-    latitude: 14.5547,
-    longitude: 121.0163,
-    address: "Universal LMS Bldg, 106 Esteban St, Legazpi Village",
-    city: "Makati",
-    notes: "Signature third-wave roastery with minimalist counter seating. Exceptional filter brews.",
-    isFavorite: true,
-    isArchived: false,
-    createdAt: "2026-09-15T08:30:00Z",
-    updatedAt: "2026-10-12T14:20:00Z",
-    offerings: [
-      {
-        id: "off-1",
-        name: "Golden Ticket Waffles",
-        price: 380,
-        itemType: "good",
-        isRecommended: true,
-      },
-      {
-        id: "off-2",
-        name: "Cold Brew Concentrate",
-        price: 180,
-        itemType: "good",
-        isRecommended: false,
-      },
-    ],
-    visits: [
-      {
-        id: "vis-1",
-        visitedAt: "2 days ago",
-        amountSpent: 560,
-        itemsSummary: "Waffles + Cold Brew",
-        rating: 5,
-        transportMode: "walk",
-      },
-    ],
-  },
-
-];
+function formatVisitedDate(dateStr?: string | null): string {
+  if (!dateStr) return "Recently";
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr;
+    const now = new Date();
+    const diffMs = now.getTime() - d.getTime();
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    if (diffDays === 0) return "Today";
+    if (diffDays === 1) return "Yesterday";
+    if (diffDays < 7) return `${diffDays}d ago`;
+    if (diffDays < 30) return `${Math.floor(diffDays / 7)}w ago`;
+    return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  } catch {
+    return dateStr;
+  }
+}
 
 export default function TabSpotsScreen() {
   const insets = useSafeAreaInsets();
   const { colors, isDark } = useTheme();
 
   // --------------------------------------------------------------------------
-  // STATE HOOKS
+  // STATE HOOKS & DB FETCHING
   // --------------------------------------------------------------------------
-  const [spots, setSpots] = useState<SpotItem[]>(DUMMY_SPOTS);
+  const [spots, setSpots] = useState<SpotItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedStatus, setSelectedStatus] = useState<
     "all" | "favorites" | "wishlist" | "visited"
@@ -127,12 +111,120 @@ export default function TabSpotsScreen() {
     "all" | "food" | "leisure" | "self_care"
   >("all");
 
-  const toggleFavorite = (id: string) => {
+  const loadSpots = useCallback(async () => {
+    try {
+      const placesRows = await db
+        .select()
+        .from(placesTable)
+        .where(eq(placesTable.isArchived, false))
+        .orderBy(desc(placesTable.createdAt));
+
+      const offeringsRows = await db.select().from(offeringsTable);
+
+      const visitsRows = await db
+        .select()
+        .from(visitsTable)
+        .orderBy(desc(visitsTable.visitedAt));
+
+      const offeringsByPlace: Record<string, OfferingDraft[]> = {};
+      for (const off of offeringsRows) {
+        if (!offeringsByPlace[off.placeId]) {
+          offeringsByPlace[off.placeId] = [];
+        }
+        offeringsByPlace[off.placeId].push({
+          id: off.id,
+          name: off.name,
+          price: off.price,
+          itemType: off.itemType as any,
+          isRecommended: off.isRecommended,
+          notes: off.notes,
+        });
+      }
+
+      const visitsByPlace: Record<string, VisitDraft[]> = {};
+      for (const vis of visitsRows) {
+        if (!visitsByPlace[vis.placeId]) {
+          visitsByPlace[vis.placeId] = [];
+        }
+        visitsByPlace[vis.placeId].push({
+          id: vis.id,
+          visitedAt: vis.visitedAt,
+          amountSpent: vis.amountSpent,
+          itemsSummary: vis.itemsSummary,
+          rating: vis.rating,
+          transportMode: vis.transportMode as any,
+          notes: vis.notes,
+        });
+      }
+
+      const loadedSpots: SpotItem[] = placesRows.map((p) => ({
+        id: p.id,
+        name: p.name,
+        category: p.category as "food" | "leisure" | "self_care",
+        latitude: p.latitude,
+        longitude: p.longitude,
+        address: p.address,
+        city: p.city,
+        notes: p.notes,
+        paymentMethods: p.paymentMethods || ["Cash"],
+        scheduleOpen: p.scheduleOpen || null,
+        scheduleClose: p.scheduleClose || null,
+        contactNumber: p.contactNumber || null,
+        contactPerson: p.contactPerson || null,
+        isFavorite: p.isFavorite,
+        isArchived: p.isArchived,
+        createdAt: p.createdAt,
+        updatedAt: p.updatedAt,
+        offerings: offeringsByPlace[p.id] || [],
+        visits: visitsByPlace[p.id] || [],
+      }));
+
+      setSpots(loadedSpots);
+    } catch (err) {
+      console.warn("Error loading spots from SQLite:", err);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadSpots();
+    }, [loadSpots])
+  );
+
+  const handleRefresh = () => {
+    setRefreshing(true);
+    loadSpots();
+  };
+
+  const toggleFavorite = async (id: string) => {
+    const currentSpot = spots.find((s) => s.id === id);
+    if (!currentSpot) return;
+    const newFavorite = !currentSpot.isFavorite;
+
+    // Optimistic UI update
     setSpots((prev) =>
       prev.map((item) =>
-        item.id === id ? { ...item, isFavorite: !item.isFavorite } : item
+        item.id === id ? { ...item, isFavorite: newFavorite } : item
       )
     );
+
+    try {
+      await db
+        .update(placesTable)
+        .set({ isFavorite: newFavorite, updatedAt: new Date().toISOString() })
+        .where(eq(placesTable.id, id));
+    } catch (err) {
+      console.warn("Failed to persist favorite toggle:", err);
+      // Revert if error
+      setSpots((prev) =>
+        prev.map((item) =>
+          item.id === id ? { ...item, isFavorite: !newFavorite } : item
+        )
+      );
+    }
   };
 
   // --------------------------------------------------------------------------
@@ -391,6 +483,28 @@ export default function TabSpotsScreen() {
       color: c.muted,
       ...L.fill,
     },
+    scheduleTag: {
+      backgroundColor: c.sandDark,
+      paddingHorizontal: 7,
+      paddingVertical: 2.5,
+      borderRadius: 6,
+    },
+    scheduleTagText: {
+      fontFamily: FontFamily.sansMedium,
+      fontSize: 10,
+      color: c.subtle,
+    },
+    paymentTag: {
+      backgroundColor: c.sandDark,
+      paddingHorizontal: 7,
+      paddingVertical: 2.5,
+      borderRadius: 6,
+    },
+    paymentTagText: {
+      fontFamily: FontFamily.sansMedium,
+      fontSize: 10,
+      color: c.caption,
+    },
     notesBox: {
       borderLeftWidth: 3,
       paddingHorizontal: 10,
@@ -530,7 +644,11 @@ export default function TabSpotsScreen() {
     const standout = item.offerings.find((o) => o.isRecommended) || item.offerings[0];
 
     return (
-      <View style={styles.spotCard}>
+      <TouchableOpacity
+        style={styles.spotCard}
+        activeOpacity={0.88}
+        onPress={() => router.push(`/spot/${item.id}`)}
+      >
         {/* Card Header Row */}
         <Row between style={{ marginBottom: 10 }}>
           <Row gap={6}>
@@ -578,7 +696,7 @@ export default function TabSpotsScreen() {
         </Row>
 
         {/* Spot Title & City */}
-        <View style={{ marginBottom: 8 }}>
+        <View style={{ marginBottom: 6 }}>
           <Text style={styles.spotName} numberOfLines={1}>
             {item.name}
           </Text>
@@ -589,6 +707,27 @@ export default function TabSpotsScreen() {
               {item.city || "Makati"}
             </Text>
           </Row>
+          {/* Schedule & Payment Tags Row */}
+          {(item.scheduleOpen && item.scheduleClose) || (item.paymentMethods && item.paymentMethods.length > 0) ? (
+            <Row gap={6} style={{ marginTop: 6, flexWrap: "wrap" }}>
+              {item.scheduleOpen && item.scheduleClose ? (
+                <Row gap={4} style={styles.scheduleTag}>
+                  <Ionicons name="time-outline" size={10} color={colors.subtle} />
+                  <Text style={styles.scheduleTagText}>
+                    {item.scheduleOpen} – {item.scheduleClose}
+                  </Text>
+                </Row>
+              ) : null}
+              {item.paymentMethods && item.paymentMethods.length > 0 ? (
+                <Row gap={4} style={styles.paymentTag}>
+                  <Ionicons name="card-outline" size={10} color={colors.muted} />
+                  <Text style={styles.paymentTagText}>
+                    {item.paymentMethods.join(" • ")}
+                  </Text>
+                </Row>
+              ) : null}
+            </Row>
+          ) : null}
         </View>
 
         {/* Notes / Vibe (Editorial Quote) */}
@@ -627,7 +766,7 @@ export default function TabSpotsScreen() {
                 color={colors.food}
               />
               <Text style={styles.metaVisitedText}>
-                Last {lastVisit.visitedAt} • Spent{" "}
+                Last {formatVisitedDate(lastVisit.visitedAt)} • Spent{" "}
                 <Text
                   style={{
                     fontFamily: FontFamily.sansBold,
@@ -680,7 +819,7 @@ export default function TabSpotsScreen() {
             </Row>
           </TouchableOpacity>
         </Row>
-      </View>
+      </TouchableOpacity>
     );
   };
 
