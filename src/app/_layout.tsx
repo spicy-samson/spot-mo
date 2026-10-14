@@ -1,4 +1,13 @@
 import { useEffect } from "react";
+import * as Crypto from "expo-crypto";
+
+if (typeof globalThis.crypto === "undefined") {
+  // @ts-ignore
+  globalThis.crypto = {};
+}
+if (!globalThis.crypto.randomUUID) {
+  (globalThis.crypto as any).randomUUID = Crypto.randomUUID;
+}
 import { useMigrations } from "drizzle-orm/expo-sqlite/migrator";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
