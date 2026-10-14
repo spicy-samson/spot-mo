@@ -9,7 +9,10 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "icon": "./assets/expo.icon",
-      "bundleIdentifier": "com.anonymous.spot-mo"
+      "bundleIdentifier": "com.anonymous.spot-mo",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Spot Mo uses your location to discover spots and curate decisions in your neighborhood."
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -32,6 +35,12 @@
           "backgroundColor": "#208AEF",
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 76
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Spot Mo uses your location to discover spots and curate decisions in your neighborhood."
         }
       ],
       "react-native-maps",
