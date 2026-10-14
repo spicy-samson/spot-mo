@@ -10,13 +10,13 @@ export const LightColors = {
   terracottaLight: "#F5F5F4",
   primaryText: "#FFFFFF",
 
-  // Distinct Triad Categories
-  food: "#2E6F40", // Kyoto Matcha / Crisp Olive (Appetizing culinary green)
-  foodLight: "#EAF4ED",
-  leisure: "#B45309", // Warm Sand Ochre / Honey Amber (Cozy cafe & discovery)
-  leisureLight: "#FEF3C7",
-  selfCare: "#4F46E5", // Muted Iris / Indigo (Restorative wellness)
-  selfCareLight: "#EEF2FF",
+  // Distinct Triad Categories (High hue separation, Google/Apple Maps conventions)
+  food: "#F97316", // Warm Vibrant Orange (Appetite & dining standard)
+  foodLight: "#FFF7ED",
+  leisure: "#16A34A", // Park & Recreation Green (Outdoors & activity standard)
+  leisureLight: "#F0FDF4",
+  selfCare: "#8B5CF6", // Restorative Lavender Purple (Wellness & spa standard)
+  selfCareLight: "#F5F3FF",
 
   // Neutrals & Surfaces
   canvas: "#FBF9F5", // Oat Milk Canvas
@@ -46,11 +46,11 @@ export const LightColors = {
   fabIcon: "#FFFFFF",
 
   // Status & Semantics
-  sage: "#4F46E5",
-  moss: "#2E6F40",
-  mossDark: "#1E4A2B",
-  mossLight: "#EAF4ED",
-  ochre: "#B45309",
+  sage: "#8B5CF6",
+  moss: "#16A34A",
+  mossDark: "#15803D",
+  mossLight: "#F0FDF4",
+  ochre: "#F97316",
 };
 
 export const DarkColors = {
@@ -63,13 +63,13 @@ export const DarkColors = {
   terracottaLight: "#292524",
   primaryText: "#1C1917",
 
-  // Distinct Triad Categories (Luminous but soft on dark surfaces)
-  food: "#4ADE80", // Vibrant Matcha Mint
-  foodLight: "#143520",
-  leisure: "#FBBF24", // Warm Golden Ochre
-  leisureLight: "#3D260A",
-  selfCare: "#818CF8", // Soft Iris Lavender
-  selfCareLight: "#1E1B4B",
+  // Distinct Triad Categories (Luminous & brightened for dark OLED maps)
+  food: "#FB923C", // Brightened Warm Orange
+  foodLight: "#431407",
+  leisure: "#4ADE80", // Brightened Mint/Emerald Green
+  leisureLight: "#052E16",
+  selfCare: "#A78BFA", // Luminous Lavender Purple
+  selfCareLight: "#2E1065",
 
   // Neutrals & Surfaces (OLED Deep Charcoal)
   canvas: "#0C0A09",
@@ -99,11 +99,11 @@ export const DarkColors = {
   fabIcon: "#1C1917",
 
   // Status & Semantics
-  sage: "#818CF8",
+  sage: "#A78BFA",
   moss: "#4ADE80",
   mossDark: "#22C55E",
-  mossLight: "#143520",
-  ochre: "#FBBF24",
+  mossLight: "#052E16",
+  ochre: "#FB923C",
 };
 
 export const Colors = LightColors;
