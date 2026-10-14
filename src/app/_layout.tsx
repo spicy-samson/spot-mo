@@ -79,8 +79,17 @@ export default function RootLayout() {
 
         {/* Detail screens (slide from right) */}
         <Stack.Screen
-          name="spot/[id]"
-          options={{ headerShown: true, title: "Spot Details" }}
+          name="spot/[id]/index"
+          options={{ headerShown: false }}
+        />
+
+        {/* Modals (slide up from bottom) */}
+        <Stack.Screen
+          name="spot/[id]/edit"
+          options={{
+            presentation: "modal",
+            headerShown: false,
+          }}
         />
 
         {/* Modals (slide up from bottom) */}

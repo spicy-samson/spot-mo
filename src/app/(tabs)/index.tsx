@@ -1756,19 +1756,10 @@ export default function HomeScreen() {
                         styles.heroLogBtn,
                         { backgroundColor: colors.copper },
                       ]}
-                      onPress={() => {
-                        router.push({
-                          pathname: "/spot/new",
-                          params: {
-                            lat: heroSpot.latitude?.toString() || "",
-                            lng: heroSpot.longitude?.toString() || "",
-                            address: heroSpot.address || "",
-                          },
-                        });
-                      }}
+                      onPress={() => router.push(`/spot/${heroSpot.id}`)}
                     >
-                      <Octicons
-                        name="plus"
+                      <Ionicons
+                        name="book-outline"
                         size={12}
                         color={colors.primaryText}
                       />
@@ -1778,7 +1769,7 @@ export default function HomeScreen() {
                           { color: colors.primaryText },
                         ]}
                       >
-                        Add Offering
+                        Spot Details
                       </Text>
                     </TouchableOpacity>
                   </View>
