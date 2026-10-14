@@ -75,6 +75,23 @@ export interface SpotItem {
   visits: VisitDraft[];
 }
 
+function getOpenStatus(open?: string | null, close?: string | null) {
+  if (!open || !close) return null;
+  const now = new Date().toLocaleTimeString("en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  const isOpen =
+    open <= close
+      ? now >= open && now <= close
+      : now >= open || now <= close;
+  return {
+    isOpen,
+    label: isOpen ? "Open Now" : "Closed",
+    timeRange: `${open} – ${close}`,
+  };
+}
+
 function formatVisitedDate(dateStr?: string | null): string {
   if (!dateStr) return "Recently";
   try {
@@ -487,51 +504,40 @@ export default function TabSpotsScreen() {
     },
     spotName: {
       fontFamily: FontFamily.serifSemiBold,
-      fontSize: 18,
+      fontSize: 16.5,
       letterSpacing: -0.2,
       color: c.charcoal,
+      flex: 1,
+      paddingRight: 8,
     },
     addressText: {
       fontFamily: FontFamily.sansRegular,
       fontSize: 11.5,
       color: c.muted,
-      ...L.fill,
+      flexShrink: 1,
     },
-    scheduleTag: {
-      backgroundColor: c.sandDark,
-      paddingHorizontal: 7,
-      paddingVertical: 2.5,
-      borderRadius: 6,
+    statusDot: {
+      width: 6,
+      height: 6,
+      borderRadius: 3,
     },
-    scheduleTagText: {
-      fontFamily: FontFamily.sansMedium,
-      fontSize: 10,
-      color: c.subtle,
-    },
-    paymentTag: {
-      backgroundColor: c.sandDark,
-      paddingHorizontal: 7,
-      paddingVertical: 2.5,
-      borderRadius: 6,
-    },
-    paymentTagText: {
-      fontFamily: FontFamily.sansMedium,
-      fontSize: 10,
-      color: c.caption,
+    statusDotLabel: {
+      fontFamily: FontFamily.sansSemiBold,
+      fontSize: 10.5,
     },
     notesBox: {
-      borderLeftWidth: 3,
-      paddingHorizontal: 10,
-      paddingVertical: 6,
+      borderLeftWidth: 2.5,
+      paddingHorizontal: 9,
+      paddingVertical: 5,
       borderRadius: 4,
-      marginVertical: 8,
+      marginVertical: 4,
       backgroundColor: dark ? "rgba(39, 39, 42, 0.4)" : "rgba(245, 245, 240, 0.7)",
     },
     notesText: {
       fontFamily: FontFamily.serifRegular,
       fontStyle: "italic",
-      fontSize: 12,
-      lineHeight: 17,
+      fontSize: 11.5,
+      lineHeight: 16,
       color: c.charcoal,
     },
     offeringStrip: {
@@ -541,17 +547,18 @@ export default function TabSpotsScreen() {
       borderRadius: 10,
       paddingHorizontal: 10,
       paddingVertical: 6,
-      marginBottom: 10,
+      marginTop: 2,
+      marginBottom: 6,
     },
     offeringIconCircle: {
-      width: 16,
-      height: 16,
-      borderRadius: 8,
+      width: 18,
+      height: 18,
+      borderRadius: 9,
       ...L.center,
     },
     offeringTitle: {
-      fontFamily: FontFamily.sansSemiBold,
-      fontSize: 11.5,
+      fontFamily: FontFamily.sansMedium,
+      fontSize: 12,
       color: c.charcoal,
     },
     offeringPrice: {
@@ -559,44 +566,22 @@ export default function TabSpotsScreen() {
       fontSize: 12.5,
       color: c.copper,
     },
+    cardFooterRow: {
+      marginTop: 4,
+      paddingTop: 8,
+      borderTopWidth: 1,
+      borderTopColor: dark ? "rgba(39, 39, 42, 0.6)" : "rgba(235, 233, 226, 0.7)",
+      alignItems: "center",
+    },
     metaVisitedText: {
       fontFamily: FontFamily.sansMedium,
       fontSize: 11,
-      color: c.subtle,
+      color: c.muted,
     },
     metaWishlistText: {
       fontFamily: FontFamily.sansMedium,
       fontSize: 11,
       color: c.leisure,
-    },
-    cardActionRow: {
-      paddingTop: 10,
-      borderTopWidth: 0.5,
-      borderTopColor: c.border,
-    },
-    cardActionBtn: {
-      backgroundColor: c.sandDark,
-      borderColor: c.border,
-      borderWidth: 1,
-      paddingVertical: 7,
-      borderRadius: 10,
-      ...L.fill,
-    },
-    cardActionBtnText: {
-      fontFamily: FontFamily.sansSemiBold,
-      fontSize: 11,
-      color: c.charcoal,
-    },
-    cardActionBtnPrimary: {
-      backgroundColor: c.copper,
-      paddingVertical: 7,
-      borderRadius: 10,
-      ...L.fill,
-    },
-    cardActionBtnPrimaryText: {
-      fontFamily: FontFamily.sansBold,
-      fontSize: 11,
-      color: c.primaryText,
     },
     listContent: {
       paddingHorizontal: 16,
@@ -649,13 +634,18 @@ export default function TabSpotsScreen() {
   }));
 
   // --------------------------------------------------------------------------
-  // RENDER SPOT CARD
+  // RENDER SPOT CARD (Option A: "The Curator's Field Card")
   // --------------------------------------------------------------------------
   const renderSpotCard = ({ item }: { item: SpotItem }) => {
     const cat = getCategoryConfig(item.category);
     const hasVisited = item.visits.length > 0;
     const lastVisit = hasVisited ? item.visits[0] : null;
-    const standout = item.offerings.find((o) => o.isRecommended) || item.offerings[0];
+    const standout =
+      item.offerings.find((o) => o.isRecommended) || item.offerings[0];
+    const scheduleStatus = getOpenStatus(
+      item.scheduleOpen,
+      item.scheduleClose,
+    );
 
     return (
       <TouchableOpacity
@@ -663,39 +653,14 @@ export default function TabSpotsScreen() {
         activeOpacity={0.88}
         onPress={() => router.push(`/spot/${item.id}`)}
       >
-        {/* Card Header Row */}
-        <Row between style={{ marginBottom: 10 }}>
-          <Row gap={6}>
-            {/* Category Badge */}
-            <Row gap={4} style={[styles.categoryBadge, { backgroundColor: cat.bgColor }]}>
-              <Ionicons name={cat.icon} size={11} color={cat.color} />
-              <Text style={[styles.categoryBadgeText, { color: cat.color }]}>
-                {cat.label}
-              </Text>
-            </Row>
-
-            {/* Visit Status Pill */}
-            <View
-              style={[
-                styles.statusBadge,
-                !hasVisited && styles.statusBadgeWishlist,
-              ]}
-            >
-              <Text
-                style={[
-                  styles.statusBadgeText,
-                  !hasVisited && styles.statusBadgeWishlistText,
-                ]}
-              >
-                {hasVisited ? `Visited (${item.visits.length}x)` : "Wishlist"}
-              </Text>
-            </View>
-          </Row>
-
-          {/* Favorite Star Button */}
+        {/* Top: Name & Favorite Star Button */}
+        <Row between style={{ alignItems: "flex-start", marginBottom: 3 }}>
+          <Text style={styles.spotName} numberOfLines={1}>
+            {item.name}
+          </Text>
           <TouchableOpacity
             onPress={() => toggleFavorite(item.id)}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             style={[
               styles.favoriteBtn,
               item.isFavorite && styles.favoriteBtnActive,
@@ -704,61 +669,75 @@ export default function TabSpotsScreen() {
             <Ionicons
               name={item.isFavorite ? "star" : "star-outline"}
               size={14}
-              color={item.isFavorite ? colors.leisure : colors.subtle}
+              color={
+                item.isFavorite
+                  ? (isDark ? "#F59E0B" : colors.copper)
+                  : colors.subtle
+              }
             />
           </TouchableOpacity>
         </Row>
 
-        {/* Spot Title & City */}
-        <View style={{ marginBottom: 6 }}>
-          <Text style={styles.spotName} numberOfLines={1}>
-            {item.name}
+        {/* Location & Live Hours */}
+        <Row gap={6} style={{ alignItems: "center", marginBottom: 8 }}>
+          <Octicons name="location" size={11} color={colors.muted} />
+          <Text style={styles.addressText} numberOfLines={1}>
+            {item.address ? `${item.address} • ` : ""}
+            {item.city || "Nearby"}
           </Text>
-          <Row gap={5} style={{ marginTop: 2 }}>
-            <Octicons name="location" size={11} color={colors.muted} />
-            <Text style={styles.addressText} numberOfLines={1}>
-              {item.address ? `${item.address} • ` : ""}
-              {item.city || "Nearby"}
-            </Text>
-          </Row>
-          {/* Schedule & Payment Tags Row */}
-          {(item.scheduleOpen && item.scheduleClose) || (item.paymentMethods && item.paymentMethods.length > 0) ? (
-            <Row gap={6} style={{ marginTop: 6, flexWrap: "wrap" }}>
-              {item.scheduleOpen && item.scheduleClose ? (
-                <Row gap={4} style={styles.scheduleTag}>
-                  <Ionicons name="time-outline" size={10} color={colors.subtle} />
-                  <Text style={styles.scheduleTagText}>
-                    {item.scheduleOpen} – {item.scheduleClose}
-                  </Text>
-                </Row>
-              ) : null}
-              {item.paymentMethods && item.paymentMethods.length > 0 ? (
-                <Row gap={4} style={styles.paymentTag}>
-                  <Ionicons name="card-outline" size={10} color={colors.muted} />
-                  <Text style={styles.paymentTagText}>
-                    {item.paymentMethods.join(" • ")}
-                  </Text>
-                </Row>
-              ) : null}
+
+          {scheduleStatus && (
+            <Row gap={4} style={{ alignItems: "center" }}>
+              <Text style={{ fontSize: 10, color: colors.subtle }}>•</Text>
+              <View
+                style={[
+                  styles.statusDot,
+                  {
+                    backgroundColor: scheduleStatus.isOpen
+                      ? colors.moss
+                      : colors.muted,
+                  },
+                ]}
+              />
+              <Text
+                style={[
+                  styles.statusDotLabel,
+                  {
+                    color: scheduleStatus.isOpen
+                      ? colors.moss
+                      : colors.muted,
+                  },
+                ]}
+              >
+                {scheduleStatus.label}
+              </Text>
             </Row>
-          ) : null}
-        </View>
+          )}
+        </Row>
 
-        {/* Notes / Vibe (Editorial Quote) */}
-        {item.notes ? (
-          <View style={[styles.notesBox, { borderLeftColor: cat.color }]}>
-            <Text style={styles.notesText} numberOfLines={2}>
-              “{item.notes}”
-            </Text>
-          </View>
-        ) : null}
-
-        {/* Standout Offerings Section */}
+        {/* Standout Offering Highlight or Curator Note */}
         {standout ? (
           <Row between style={styles.offeringStrip}>
-            <Row gap={6} style={L.fill}>
-              <View style={[styles.offeringIconCircle, { backgroundColor: cat.color }]}>
-                <Ionicons name="sparkles" size={10} color="#FFFFFF" />
+            <Row gap={7} style={L.fill}>
+              <View
+                style={[
+                  styles.offeringIconCircle,
+                  {
+                    backgroundColor: standout.isRecommended
+                      ? (isDark ? "#3A2912" : "#FEF3C7")
+                      : cat.bgColor,
+                    borderColor: standout.isRecommended
+                      ? (isDark ? "#854D0E" : "#FDE68A")
+                      : "transparent",
+                    borderWidth: standout.isRecommended ? 1 : 0,
+                  },
+                ]}
+              >
+                <Ionicons
+                  name={standout.isRecommended ? "star" : cat.icon}
+                  size={10}
+                  color={standout.isRecommended ? "#D97706" : cat.color}
+                />
               </View>
               <Text style={styles.offeringTitle} numberOfLines={1}>
                 {standout.name}
@@ -768,70 +747,59 @@ export default function TabSpotsScreen() {
               {standout.price === 0 ? "Free" : `₱${standout.price}`}
             </Text>
           </Row>
+        ) : item.notes ? (
+          <View style={[styles.notesBox, { borderLeftColor: cat.color }]}>
+            <Text style={styles.notesText} numberOfLines={2}>
+              “{item.notes}”
+            </Text>
+          </View>
         ) : null}
 
-        {/* Visit & Spend Metadata Row */}
-        <View style={{ marginBottom: 12 }}>
-          {hasVisited && lastVisit ? (
-            <Row gap={5}>
-              <Ionicons
-                name="checkmark-circle-outline"
-                size={13}
-                color={colors.food}
-              />
-              <Text style={styles.metaVisitedText}>
-                Last {formatVisitedDate(lastVisit.visitedAt)} • Spent{" "}
-                <Text
-                  style={{
-                    fontFamily: FontFamily.sansBold,
-                    color: colors.charcoal,
-                  }}
-                >
-                  ₱{lastVisit.amountSpent}
+        {/* Footer: Category Pill, Visited Metadata, and Chevron */}
+        <Row between style={styles.cardFooterRow}>
+          <Row gap={8} style={{ alignItems: "center", flex: 1, paddingRight: 8 }}>
+            {/* Category Badge */}
+            <Row
+              gap={4}
+              style={[
+                styles.categoryBadge,
+                { backgroundColor: cat.bgColor },
+              ]}
+            >
+              <Ionicons name={cat.icon} size={11} color={cat.color} />
+              <Text style={[styles.categoryBadgeText, { color: cat.color }]}>
+                {cat.label}
+              </Text>
+            </Row>
+
+            {/* Visit Status Metadata */}
+            {hasVisited ? (
+              <Row gap={4} style={{ alignItems: "center" }}>
+                <Ionicons
+                  name="checkmark-circle-outline"
+                  size={12}
+                  color={colors.food}
+                />
+                <Text style={styles.metaVisitedText} numberOfLines={1}>
+                  Visited {item.visits.length}x
+                  {lastVisit?.amountSpent ? ` · ₱${lastVisit.amountSpent}` : ""}
                 </Text>
-                {lastVisit.rating ? ` • ★ ${lastVisit.rating}` : ""}
-              </Text>
-            </Row>
-          ) : (
-            <Row gap={5}>
-              <Ionicons
-                name="bookmark-outline"
-                size={13}
-                color={colors.leisure}
-              />
-              <Text style={styles.metaWishlistText}>
-                Saved in Wishlist • Ready to explore
-              </Text>
-            </Row>
-          )}
-        </View>
+              </Row>
+            ) : (
+              <Row gap={4} style={{ alignItems: "center" }}>
+                <Ionicons
+                  name="bookmark-outline"
+                  size={11}
+                  color={colors.leisure}
+                />
+                <Text style={styles.metaWishlistText} numberOfLines={1}>
+                  Wishlist
+                </Text>
+              </Row>
+            )}
+          </Row>
 
-        {/* Bottom Action Buttons */}
-        <Row gap={8} style={styles.cardActionRow}>
-          <TouchableOpacity
-            style={styles.cardActionBtn}
-            onPress={() => router.push("/(tabs)")}
-          >
-            <Row center gap={5}>
-              <Ionicons name="compass-outline" size={13} color={colors.charcoal} />
-              <Text style={styles.cardActionBtnText}>Map Radar</Text>
-            </Row>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.cardActionBtnPrimary}
-            onPress={() => {
-              router.push({
-                pathname: "/spot/new",
-                params: { address: item.address || "" },
-              });
-            }}
-          >
-            <Row center gap={5}>
-              <Octicons name="plus" size={12} color={colors.primaryText} />
-              <Text style={styles.cardActionBtnPrimaryText}>Log Visit ₱</Text>
-            </Row>
-          </TouchableOpacity>
+          <Octicons name="chevron-right" size={13} color={colors.subtle} />
         </Row>
       </TouchableOpacity>
     );

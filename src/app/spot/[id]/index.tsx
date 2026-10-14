@@ -528,7 +528,17 @@ export default function SpotDetailScreen() {
                     { backgroundColor: catConfig.color },
                   ]}
                 >
-                  <Ionicons name="sparkles" size={11} color="#FFFFFF" />
+                  <Ionicons
+                    name={
+                      place.category === "food"
+                        ? "restaurant"
+                        : place.category === "leisure"
+                        ? "compass"
+                        : "leaf"
+                    }
+                    size={13}
+                    color="#FFFFFF"
+                  />
                 </View>
               </Marker>
             </MapView>
@@ -1054,15 +1064,18 @@ const styles = StyleSheet.create({
     height: 140,
   },
   mapMarkerPin: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: "#FFFFFF",
     alignItems: "center",
     justifyContent: "center",
     shadowColor: "#000",
-    shadowOpacity: 0.2,
-    shadowRadius: 3,
-    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 1.5 },
+    elevation: 4,
   },
   mapActionsRow: {
     flexDirection: "row",
