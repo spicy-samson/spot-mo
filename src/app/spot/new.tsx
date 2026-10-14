@@ -1,3 +1,6 @@
+import Ionicons from "@expo/vector-icons/Ionicons";
+import Octicons from "@expo/vector-icons/Octicons";
+import * as Crypto from "expo-crypto";
 import * as Location from "expo-location";
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
@@ -13,12 +16,10 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import Ionicons from "@expo/vector-icons/Ionicons";
-import Octicons from "@expo/vector-icons/Octicons";
 
 import { db } from "@/../db/client";
 import { offeringsTable, placesTable } from "@/../db/schema";
-import { Colors, FontFamily, Typography, useTheme } from "@/constants/theme";
+import { Colors, FontFamily, useTheme } from "@/constants/theme";
 
 interface OfferingDraft {
   id: string;
@@ -26,6 +27,13 @@ interface OfferingDraft {
   price: string;
   isRecommended: boolean;
 }
+
+const PAYMENT_OPTIONS = [
+  { key: "Cash" as const, label: "Cash", icon: "cash-outline" as const },
+  { key: "Gcash" as const, label: "GCash", icon: "wallet-outline" as const },
+  { key: "QRPH" as const, label: "QRPH", icon: "qr-code-outline" as const },
+  { key: "Card" as const, label: "Card", icon: "card-outline" as const },
+];
 
 export default function NewSpotModal() {
   const { colors, isDark } = useTheme();
@@ -37,12 +45,44 @@ export default function NewSpotModal() {
 
   const [name, setName] = useState("");
   const [category, setCategory] = useState<"food" | "leisure" | "self_care">(
-    "food"
+    "food",
   );
   const [notes, setNotes] = useState("");
   const [transportMode, setTransportMode] = useState<
     "walk" | "motorcycle" | "car" | "transit"
   >("walk");
+
+  // Payment Methods & Contact state
+  const [paymentMethods, setPaymentMethods] = useState<
+    ("Cash" | "Gcash" | "QRPH" | "Card")[]
+  >(["Cash"]);
+  const [contactNumber, setContactNumber] = useState("");
+  const [contactPerson, setContactPerson] = useState("");
+
+  // Schedule state (24h "HH:mm")
+  const [scheduleOpen, setScheduleOpen] = useState("");
+  const [scheduleClose, setScheduleClose] = useState("");
+
+  const handleTimeChange = (
+    text: string,
+    current: string,
+    setter: (val: string) => void,
+  ) => {
+    const cleaned = text.replace(/[^0-9:]/g, "");
+    if (cleaned.length === 2 && !cleaned.includes(":") && text.length > current.length) {
+      setter(`${cleaned}:`);
+    } else {
+      setter(cleaned);
+    }
+  };
+
+  const togglePaymentMethod = (method: "Cash" | "Gcash" | "QRPH" | "Card") => {
+    setPaymentMethods((prev) =>
+      prev.includes(method)
+        ? prev.filter((m) => m !== method)
+        : [...prev, method],
+    );
+  };
 
   // Offerings list
   const [offerings, setOfferings] = useState<OfferingDraft[]>([
@@ -80,7 +120,9 @@ export default function NewSpotModal() {
             setCityText(city);
             if (!params.address) {
               const street = rev.street || rev.name || rev.district || "";
-              setAddressText(street ? `${street}, ${city}` : `Selected Pin (${city})`);
+              setAddressText(
+                street ? `${street}, ${city}` : `Selected Pin (${city})`,
+              );
             }
           }
         })
@@ -126,12 +168,10 @@ export default function NewSpotModal() {
         const city = rev.city || rev.subregion || rev.region || "Metro Manila";
         const street = rev.street || rev.name || rev.district || "";
         setCityText(city);
-        setAddressText(
-          street ? `${street}, ${city}` : `Current GPS (${city})`
-        );
+        setAddressText(street ? `${street}, ${city}` : `Current GPS (${city})`);
       } else {
         setAddressText(
-          `GPS (${loc.coords.latitude.toFixed(4)}, ${loc.coords.longitude.toFixed(4)})`
+          `GPS (${loc.coords.latitude.toFixed(4)}, ${loc.coords.longitude.toFixed(4)})`,
         );
       }
     } catch {
@@ -156,10 +196,10 @@ export default function NewSpotModal() {
   const updateOffering = (
     id: string,
     field: keyof OfferingDraft,
-    value: string | boolean
+    value: string | boolean,
   ) => {
     setOfferings((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, [field]: value } : item))
+      prev.map((item) => (item.id === id ? { ...item, [field]: value } : item)),
     );
   };
 
@@ -183,7 +223,7 @@ export default function NewSpotModal() {
 
     try {
       setSaving(true);
-      const placeId = crypto.randomUUID();
+      const placeId = Crypto.randomUUID();
 
       // 1. Insert place
       await db.insert(placesTable).values({
@@ -194,6 +234,11 @@ export default function NewSpotModal() {
         longitude: coords?.longitude ?? null,
         address: addressText,
         city: cityText || "Makati",
+        paymentMethods: paymentMethods.length > 0 ? paymentMethods : ["Cash"],
+        scheduleOpen: scheduleOpen.trim() || null,
+        scheduleClose: scheduleClose.trim() || null,
+        contactNumber: contactNumber.trim() || null,
+        contactPerson: contactPerson.trim() || null,
         notes: notes.trim() || null,
         isFavorite: false,
         isArchived: false,
@@ -205,7 +250,7 @@ export default function NewSpotModal() {
       const validOfferings = offerings.filter((o) => o.name.trim() !== "");
       for (const item of validOfferings) {
         await db.insert(offeringsTable).values({
-          id: crypto.randomUUID(),
+          id: Crypto.randomUUID(),
           placeId,
           name: item.name.trim(),
           price: parseFloat(item.price) || 0,
@@ -223,7 +268,10 @@ export default function NewSpotModal() {
         router.replace("/(tabs)");
       }
     } catch (err: any) {
-      Alert.alert("Error Saving Spot", err?.message || "Failed to save to database");
+      Alert.alert(
+        "Error Saving Spot",
+        err?.message || "Failed to save to database",
+      );
     } finally {
       setSaving(false);
     }
@@ -277,10 +325,8 @@ export default function NewSpotModal() {
             <Text style={[styles.headerTitle, { color: colors.charcoal }]}>
               New Spot
             </Text>
-            <Text
-              style={[styles.headerSubtitle, { color: colors.caption }]}
-            >
-              QUICK PIN • 20S
+            <Text style={[styles.headerSubtitle, { color: colors.caption }]}>
+              QUICK PIN
             </Text>
           </View>
 
@@ -293,16 +339,10 @@ export default function NewSpotModal() {
             disabled={saving}
           >
             {saving ? (
-              <ActivityIndicator
-                size="small"
-                color={colors.primaryText}
-              />
+              <ActivityIndicator size="small" color={colors.primaryText} />
             ) : (
               <Text
-                style={[
-                  styles.saveHeaderText,
-                  { color: colors.primaryText },
-                ]}
+                style={[styles.saveHeaderText, { color: colors.primaryText }]}
               >
                 Save Pin
               </Text>
@@ -340,10 +380,7 @@ export default function NewSpotModal() {
                 ]}
               >
                 <Text
-                  style={[
-                    styles.requiredBadgeText,
-                    { color: colors.leisure },
-                  ]}
+                  style={[styles.requiredBadgeText, { color: colors.leisure }]}
                 >
                   Required
                 </Text>
@@ -357,11 +394,7 @@ export default function NewSpotModal() {
                   { backgroundColor: colors.canvasMuted },
                 ]}
               >
-                <Octicons
-                  name="location"
-                  size={16}
-                  color={colors.charcoal}
-                />
+                <Octicons name="location" size={16} color={colors.charcoal} />
               </View>
               <TextInput
                 style={[styles.largeTextInput, { color: colors.charcoal }]}
@@ -380,9 +413,7 @@ export default function NewSpotModal() {
               <Text style={[styles.fieldLabel, { color: colors.muted }]}>
                 Category
               </Text>
-              <Text
-                style={[styles.fieldHelpText, { color: colors.caption }]}
-              >
+              <Text style={[styles.fieldHelpText, { color: colors.caption }]}>
                 Smart tags auto-fit
               </Text>
             </View>
@@ -516,19 +547,13 @@ export default function NewSpotModal() {
                 </View>
                 <View style={styles.locationTextColumn}>
                   <Text
-                    style={[
-                      styles.locationTitle,
-                      { color: colors.charcoal },
-                    ]}
+                    style={[styles.locationTitle, { color: colors.charcoal }]}
                     numberOfLines={1}
                   >
                     {addressText}
                   </Text>
                   <Text
-                    style={[
-                      styles.locationSubtitle,
-                      { color: colors.caption },
-                    ]}
+                    style={[styles.locationSubtitle, { color: colors.caption }]}
                   >
                     {locationLoading
                       ? "Acquiring GPS fix..."
@@ -548,10 +573,7 @@ export default function NewSpotModal() {
                 onPress={fetchCurrentLocation}
               >
                 <Text
-                  style={[
-                    styles.locationEditText,
-                    { color: colors.charcoal },
-                  ]}
+                  style={[styles.locationEditText, { color: colors.charcoal }]}
                 >
                   Refresh GPS
                 </Text>
@@ -573,17 +595,12 @@ export default function NewSpotModal() {
               <View style={styles.rowCentered}>
                 <Text style={{ fontSize: 13, marginRight: 4 }}>★</Text>
                 <Text
-                  style={[
-                    styles.sectionHeading,
-                    { color: colors.charcoal },
-                  ]}
+                  style={[styles.sectionHeading, { color: colors.charcoal }]}
                 >
                   What's good here?
                 </Text>
               </View>
-              <Text
-                style={[styles.fieldHelpText, { color: colors.caption }]}
-              >
+              <Text style={[styles.fieldHelpText, { color: colors.caption }]}>
                 Must-order recommendations
               </Text>
             </View>
@@ -612,9 +629,7 @@ export default function NewSpotModal() {
                     }
                     placeholderTextColor={colors.muted}
                     value={item.name}
-                    onChangeText={(val) =>
-                      updateOffering(item.id, "name", val)
-                    }
+                    onChangeText={(val) => updateOffering(item.id, "name", val)}
                   />
                 </View>
 
@@ -628,9 +643,7 @@ export default function NewSpotModal() {
                     },
                   ]}
                 >
-                  <Text
-                    style={[styles.pesoSign, { color: colors.subtle }]}
-                  >
+                  <Text style={[styles.pesoSign, { color: colors.subtle }]}>
                     ₱
                   </Text>
                   <TextInput
@@ -665,7 +678,7 @@ export default function NewSpotModal() {
                     updateOffering(
                       item.id,
                       "isRecommended",
-                      !item.isRecommended
+                      !item.isRecommended,
                     )
                   }
                 >
@@ -700,23 +713,297 @@ export default function NewSpotModal() {
               style={styles.addOfferingButton}
               onPress={addOffering}
             >
-              <Octicons
-                name="plus"
-                size={14}
-                color={colors.leisure}
-              />
-              <Text
-                style={[
-                  styles.addOfferingText,
-                  { color: colors.leisure },
-                ]}
-              >
+              <Octicons name="plus" size={14} color={colors.leisure} />
+              <Text style={[styles.addOfferingText, { color: colors.leisure }]}>
                 Add another recommendation
               </Text>
             </TouchableOpacity>
           </View>
 
-          {/* 5. Quick Note Field */}
+          {/* 4. Schedule / Operating Hours */}
+          <View
+            style={[
+              styles.cardSection,
+              {
+                backgroundColor: colors.card,
+                borderColor: colors.border,
+              },
+            ]}
+          >
+            <View style={styles.fieldHeaderRow}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                <Ionicons
+                  name="time-outline"
+                  size={15}
+                  color={colors.charcoal}
+                />
+                <Text style={[styles.fieldLabel, { color: colors.muted }]}>
+                  Operating Hours
+                </Text>
+              </View>
+              <Text style={[styles.optionalText, { color: colors.caption }]}>
+                Optional
+              </Text>
+            </View>
+
+            {/* Side-by-side Open & Close inputs */}
+            <View style={styles.scheduleRow}>
+              {/* Opens At */}
+              <View
+                style={[
+                  styles.scheduleTimeBox,
+                  {
+                    backgroundColor: colors.canvas,
+                    borderColor: colors.border,
+                  },
+                ]}
+              >
+                <View style={styles.scheduleTimeHeader}>
+                  <Ionicons name="sunny-outline" size={13} color="#D97706" />
+                  <Text
+                    style={[
+                      styles.scheduleTimeLabel,
+                      { color: colors.caption },
+                    ]}
+                  >
+                    Opens At
+                  </Text>
+                </View>
+                <TextInput
+                  style={[styles.scheduleTimeInput, { color: colors.charcoal }]}
+                  placeholder="08:00"
+                  placeholderTextColor={colors.muted}
+                  value={scheduleOpen}
+                  onChangeText={(val) =>
+                    handleTimeChange(val, scheduleOpen, setScheduleOpen)
+                  }
+                  maxLength={5}
+                  keyboardType="numbers-and-punctuation"
+                />
+              </View>
+
+              {/* Arrow separator */}
+              <View style={styles.scheduleDivider}>
+                <Ionicons
+                  name="arrow-forward"
+                  size={14}
+                  color={colors.muted}
+                />
+              </View>
+
+              {/* Closes At */}
+              <View
+                style={[
+                  styles.scheduleTimeBox,
+                  {
+                    backgroundColor: colors.canvas,
+                    borderColor: colors.border,
+                  },
+                ]}
+              >
+                <View style={styles.scheduleTimeHeader}>
+                  <Ionicons name="moon-outline" size={13} color="#4F46E5" />
+                  <Text
+                    style={[
+                      styles.scheduleTimeLabel,
+                      { color: colors.caption },
+                    ]}
+                  >
+                    Closes At
+                  </Text>
+                </View>
+                <TextInput
+                  style={[styles.scheduleTimeInput, { color: colors.charcoal }]}
+                  placeholder="22:00"
+                  placeholderTextColor={colors.muted}
+                  value={scheduleClose}
+                  onChangeText={(val) =>
+                    handleTimeChange(val, scheduleClose, setScheduleClose)
+                  }
+                  maxLength={5}
+                  keyboardType="numbers-and-punctuation"
+                />
+              </View>
+            </View>
+
+            {/* Quick Presets */}
+            <View style={styles.schedulePresetsRow}>
+              {[
+                { label: "7am – 8pm", open: "07:00", close: "20:00" },
+                { label: "8am – 10pm", open: "08:00", close: "22:00" },
+                { label: "10am – 10pm", open: "10:00", close: "22:00" },
+                { label: "Late (4pm–2am)", open: "16:00", close: "02:00" },
+                { label: "24 Hours", open: "00:00", close: "23:59" },
+              ].map((p) => {
+                const isSelected =
+                  scheduleOpen === p.open && scheduleClose === p.close;
+                return (
+                  <TouchableOpacity
+                    key={p.label}
+                    style={[
+                      styles.schedulePresetChip,
+                      {
+                        backgroundColor: isSelected
+                          ? `${colors.copper}15`
+                          : colors.canvas,
+                        borderColor: isSelected
+                          ? colors.copper
+                          : colors.border,
+                      },
+                    ]}
+                    onPress={() => {
+                      if (isSelected) {
+                        setScheduleOpen("");
+                        setScheduleClose("");
+                      } else {
+                        setScheduleOpen(p.open);
+                        setScheduleClose(p.close);
+                      }
+                    }}
+                  >
+                    <Text
+                      style={[
+                        styles.schedulePresetText,
+                        {
+                          color: isSelected ? colors.charcoal : colors.subtle,
+                          fontWeight: isSelected ? "600" : "400",
+                        },
+                      ]}
+                    >
+                      {p.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+
+          {/* 5. Payment Methods section (2x2 Checkbox Grid) */}
+          <View
+            style={[
+              styles.cardSection,
+              {
+                backgroundColor: colors.card,
+                borderColor: colors.border,
+              },
+            ]}
+          >
+            <View style={styles.fieldHeaderRow}>
+              <Text style={[styles.fieldLabel, { color: colors.muted }]}>
+                Payment Methods
+              </Text>
+              <Text style={[styles.optionalText, { color: colors.caption }]}>
+                Accepted Options
+              </Text>
+            </View>
+
+            <View style={styles.paymentGrid}>
+              {PAYMENT_OPTIONS.map((item) => {
+                const isChecked = paymentMethods.includes(item.key);
+                return (
+                  <TouchableOpacity
+                    key={item.key}
+                    style={[
+                      styles.paymentCheckboxCard,
+                      {
+                        backgroundColor: isChecked
+                          ? isDark
+                            ? "#27272A"
+                            : "#FAF7F2"
+                          : colors.card,
+                        borderColor: isChecked ? colors.copper : colors.border,
+                      },
+                    ]}
+                    onPress={() => togglePaymentMethod(item.key)}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons
+                      name={isChecked ? "checkbox" : "square-outline"}
+                      size={18}
+                      color={isChecked ? colors.copper : colors.muted}
+                      style={{ marginRight: 8 }}
+                    />
+                    <Ionicons
+                      name={item.icon}
+                      size={16}
+                      color={isChecked ? colors.charcoal : colors.subtle}
+                      style={{ marginRight: 6 }}
+                    />
+                    <Text
+                      style={[
+                        styles.paymentCheckboxLabel,
+                        {
+                          color: isChecked ? colors.charcoal : colors.muted,
+                          fontWeight: isChecked ? "600" : "400",
+                        },
+                      ]}
+                    >
+                      {item.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+
+          {/* 5. Contact Details (Person & Number) */}
+          <View
+            style={[
+              styles.cardSection,
+              {
+                backgroundColor: colors.card,
+                borderColor: colors.border,
+              },
+            ]}
+          >
+            <View style={styles.fieldHeaderRow}>
+              <Text style={[styles.fieldLabel, { color: colors.muted }]}>
+                Contact Information
+              </Text>
+              <Text style={[styles.optionalText, { color: colors.caption }]}>
+                Optional
+              </Text>
+            </View>
+
+            <View style={styles.inputWithIconRow}>
+              <Ionicons
+                name="person-outline"
+                size={16}
+                color={colors.muted}
+                style={{ marginLeft: 4 }}
+              />
+              <TextInput
+                style={[styles.noteInput, { color: colors.charcoal }]}
+                placeholder="Contact person (e.g., Manager, Barista Marc)"
+                placeholderTextColor={colors.muted}
+                value={contactPerson}
+                onChangeText={setContactPerson}
+              />
+            </View>
+
+            <View
+              style={[styles.contactDivider, { backgroundColor: colors.border }]}
+            />
+
+            <View style={styles.inputWithIconRow}>
+              <Ionicons
+                name="call-outline"
+                size={16}
+                color={colors.muted}
+                style={{ marginLeft: 4 }}
+              />
+              <TextInput
+                style={[styles.noteInput, { color: colors.charcoal }]}
+                placeholder="Contact number (e.g., 0917-123-4567)"
+                placeholderTextColor={colors.muted}
+                value={contactNumber}
+                onChangeText={setContactNumber}
+                keyboardType="phone-pad"
+              />
+            </View>
+          </View>
+
+          {/* 6. Quick Note Field */}
           <View
             style={[
               styles.cardSection,
@@ -730,9 +1017,7 @@ export default function NewSpotModal() {
               <Text style={[styles.fieldLabel, { color: colors.muted }]}>
                 Quick Note
               </Text>
-              <Text
-                style={[styles.optionalText, { color: colors.caption }]}
-              >
+              <Text style={[styles.optionalText, { color: colors.caption }]}>
                 Optional
               </Text>
             </View>
@@ -760,9 +1045,7 @@ export default function NewSpotModal() {
               <Text style={[styles.fieldLabel, { color: colors.muted }]}>
                 How did you get here?
               </Text>
-              <Text
-                style={[styles.fieldHelpText, { color: colors.caption }]}
-              >
+              <Text style={[styles.fieldHelpText, { color: colors.caption }]}>
                 Calculates commute radar
               </Text>
             </View>
@@ -796,9 +1079,7 @@ export default function NewSpotModal() {
                         backgroundColor: isSelected
                           ? colors.copper
                           : colors.card,
-                        borderColor: isSelected
-                          ? colors.copper
-                          : colors.border,
+                        borderColor: isSelected ? colors.copper : colors.border,
                       },
                     ]}
                     onPress={() => setTransportMode(t.key as any)}
@@ -806,9 +1087,7 @@ export default function NewSpotModal() {
                     <Ionicons
                       name={t.icon}
                       size={14}
-                      color={
-                        isSelected ? colors.primaryText : colors.subtle
-                      }
+                      color={isSelected ? colors.primaryText : colors.subtle}
                       style={{ marginRight: 4 }}
                     />
                     <Text
@@ -843,11 +1122,7 @@ export default function NewSpotModal() {
               onPress={handleSave}
               disabled={saving}
             >
-              <Octicons
-                name="bookmark"
-                size={16}
-                color={colors.primaryText}
-              />
+              <Octicons name="bookmark" size={16} color={colors.primaryText} />
               <Text
                 style={[
                   styles.primarySaveButtonText,
@@ -860,9 +1135,7 @@ export default function NewSpotModal() {
               </Text>
             </TouchableOpacity>
 
-            <Text
-              style={[styles.bottomSyncHint, { color: colors.caption }]}
-            >
+            <Text style={[styles.bottomSyncHint, { color: colors.caption }]}>
               Syncs directly to your Daily Budget & Nearby Places radar
             </Text>
           </View>
@@ -1202,6 +1475,81 @@ const styles = StyleSheet.create({
     color: Colors.charcoal,
     paddingVertical: 4,
   },
+  scheduleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+  },
+  scheduleTimeBox: {
+    flex: 1,
+    borderRadius: 14,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  scheduleTimeHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    marginBottom: 4,
+  },
+  scheduleTimeLabel: {
+    fontFamily: FontFamily.sansSemiBold,
+    fontSize: 10.5,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  scheduleTimeInput: {
+    fontFamily: FontFamily.sansBold,
+    fontSize: 15,
+    paddingVertical: 2,
+  },
+  scheduleDivider: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 2,
+  },
+  schedulePresetsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+    marginTop: 10,
+  },
+  schedulePresetChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  schedulePresetText: {
+    fontFamily: FontFamily.sansMedium,
+    fontSize: 11.5,
+  },
+  paymentGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+    rowGap: 10,
+  },
+  paymentCheckboxCard: {
+    width: "48.5%",
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 11,
+    paddingHorizontal: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+  },
+  paymentCheckboxLabel: {
+    fontFamily: FontFamily.sansMedium,
+    fontSize: 13,
+  },
+  contactDivider: {
+    height: 1,
+    marginVertical: 10,
+    marginLeft: 26,
+  },
   transportChipsRow: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -1263,4 +1611,3 @@ const styles = StyleSheet.create({
     color: Colors.caption,
   },
 });
-
