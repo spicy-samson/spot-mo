@@ -71,98 +71,6 @@ const DEFAULT_REGION: Region = {
   longitudeDelta: 0.02,
 };
 
-const INITIAL_SEED_SPOTS = [
-  {
-    id: "seed-yardstick",
-    name: "Yardstick Coffee",
-    category: "food" as const,
-    latitude: 14.5552,
-    longitude: 121.0189,
-    address: "Universal LMS Bldg, 106 Esteban, Legazpi Village",
-    city: "Makati",
-    highlightDish: "Golden Ticket Waffles",
-    highlightPrice: 280,
-    notes:
-      "Specialty coffee roastery and café known for pour-overs and waffle breakfast.",
-  },
-  {
-    id: "seed-sycip",
-    name: "Washington SyCip Park",
-    category: "leisure" as const,
-    latitude: 14.5539,
-    longitude: 121.0184,
-    address: "Legazpi Village, Makati",
-    city: "Makati",
-    highlightDish: "Garden Stroll & Koi Pond",
-    highlightPrice: 0,
-    notes:
-      "Tranquil urban green sanctuary with indigenous trees, koi ponds, and gazebos.",
-  },
-  {
-    id: "seed-tobys",
-    name: "Toby's Estate",
-    category: "food" as const,
-    latitude: 14.5564,
-    longitude: 121.0211,
-    address: "Senta Condominium, Legazpi St, Legazpi Village",
-    city: "Makati",
-    highlightDish: "Flat White & Croissant",
-    highlightPrice: 190,
-    notes:
-      "Cozy corner café perfect for remote work and quick breakfast pastries.",
-  },
-  {
-    id: "seed-ayala-triangle",
-    name: "Ayala Triangle Gardens",
-    category: "leisure" as const,
-    latitude: 14.5574,
-    longitude: 121.0253,
-    address: "Paseo de Roxas, Makati",
-    city: "Makati",
-    highlightDish: "Shaded Tree Canopy Walk",
-    highlightPrice: 0,
-    notes:
-      "Expansive green park in the heart of Makati CBD, great for evening jogging and strolls.",
-  },
-  {
-    id: "seed-grey-space",
-    name: "Grey Space Wellness",
-    category: "self_care" as const,
-    latitude: 14.5528,
-    longitude: 121.0205,
-    address: "Salcedo Village, Makati",
-    city: "Makati",
-    highlightDish: "Aromatherapy Recovery",
-    highlightPrice: 850,
-    notes:
-      "Minimalist urban spa offering restorative massage and holistic wellness.",
-  },
-  {
-    id: "seed-kura",
-    name: "Kura Aesthetic Clinic",
-    category: "self_care" as const,
-    latitude: 14.5561,
-    longitude: 121.0198,
-    address: "C. Palanca St, Legazpi Village",
-    city: "Makati",
-    highlightDish: "HydraGlow Facial",
-    highlightPrice: 1200,
-    notes: "Boutique skin therapy and dermatological rejuvenation clinic.",
-  },
-  {
-    id: "seed-poblacion-pottery",
-    name: "Clay & Co Studio",
-    category: "leisure" as const,
-    latitude: 14.5638,
-    longitude: 121.0315,
-    address: "Guiginto St, Poblacion",
-    city: "Makati",
-    highlightDish: "Wheel Throwing Workshop",
-    highlightPrice: 650,
-    notes: "Hands-on ceramic craft studio with evening pottery sessions.",
-  },
-];
-
 // Google Maps custom style (Light): Keeps parks & cultural landmarks, hides commercial & civic clutter
 const GOOGLE_MAPS_STYLE_LESS_LANDMARKS = [
   // Commercial & business clutter (removes random stores, corporate offices)
@@ -726,28 +634,6 @@ export default function HomeScreen() {
 
       if (rows.length === 0) {
         // Auto-seed example spots in Makati CBD so markers immediately show
-        for (const seed of INITIAL_SEED_SPOTS) {
-          await db.insert(placesTable).values({
-            id: seed.id,
-            name: seed.name,
-            category: seed.category,
-            latitude: seed.latitude,
-            longitude: seed.longitude,
-            address: seed.address,
-            city: seed.city,
-            notes: seed.notes,
-          });
-
-          if (seed.highlightDish) {
-            await db.insert(offeringsTable).values({
-              id: `offering-${seed.id}`,
-              placeId: seed.id,
-              name: seed.highlightDish,
-              price: seed.highlightPrice,
-              isRecommended: true,
-            });
-          }
-        }
 
         rows = await db
           .select()
@@ -1543,6 +1429,11 @@ export default function HomeScreen() {
                       lng: centerCoord.longitude.toString(),
                       address: centerAddress,
                     },
+                  });
+                  console.log("Navigating to /spot/new with params:", {
+                    lat: centerCoord.latitude.toString(),
+                    lng: centerCoord.longitude.toString(),
+                    address: centerAddress,
                   });
                 }
               }}
