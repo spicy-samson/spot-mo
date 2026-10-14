@@ -237,7 +237,7 @@ export default function HomeScreen() {
   const { colors, isDark, toggleTheme } = useTheme();
   const mapRef = useRef<MapView>(null);
   const [userLocation, setUserLocation] = useState<Region | null>(null);
-  const [city, setCity] = useState("Makati");
+  const [city, setCity] = useState("Nearby");
   const [radiusKm, setRadiusKm] = useState(3);
   const [activeCategory, setActiveCategory] = useState<
     "all" | "food" | "leisure" | "self_care"
@@ -604,8 +604,8 @@ export default function HomeScreen() {
           latitude: loc.coords.latitude,
           longitude: loc.coords.longitude,
         });
-        if (rev?.city || rev?.subregion) {
-          setCity(rev.city || rev.subregion || "Makati");
+        if (rev?.city || rev?.subregion || rev?.region) {
+          setCity(rev.city || rev.subregion || rev.region || "Nearby");
         }
       } catch {
         setUserLocation(DEFAULT_REGION);
@@ -633,7 +633,7 @@ export default function HomeScreen() {
         .orderBy(desc(placesTable.createdAt));
 
       if (rows.length === 0) {
-        // Auto-seed example spots in Makati CBD so markers immediately show
+        // Auto-seed example spots if table is empty
 
         rows = await db
           .select()
@@ -762,8 +762,8 @@ export default function HomeScreen() {
         longitude: loc.coords.longitude,
       }).catch(() => []);
 
-      if (rev?.city || rev?.subregion) {
-        setCity(rev.city || rev.subregion || "Makati");
+      if (rev?.city || rev?.subregion || rev?.region) {
+        setCity(rev.city || rev.subregion || rev.region || "Nearby");
       }
     } catch (err) {
       console.warn("Error refreshing GPS location:", err);
@@ -814,7 +814,7 @@ export default function HomeScreen() {
       const [rev] = await Location.reverseGeocodeAsync({ latitude, longitude });
       if (rev) {
         const street = rev.street || rev.name || rev.district || "";
-        const c = rev.city || rev.subregion || rev.region || "Makati";
+        const c = rev.city || rev.subregion || rev.region || "Nearby";
         const addr = street ? `${street}, ${c}` : c;
         setCenterAddress(addr);
       }
@@ -1600,7 +1600,7 @@ export default function HomeScreen() {
                       },
                     ]}
                   >
-                    {city} CBD
+                    {city}
                   </Text>
                 </View>
                 <View style={styles.halfHeaderControls}>
@@ -1719,7 +1719,7 @@ export default function HomeScreen() {
                   >
                     {heroSpot.highlightDish
                       ? `${heroSpot.highlightDish} • ${
-                          heroSpot.address || heroSpot.city || "Makati"
+                          heroSpot.address || heroSpot.city || "Nearby"
                         }`
                       : heroSpot.address || "Local favorite"}
                   </Text>
@@ -2019,7 +2019,7 @@ export default function HomeScreen() {
                         >
                           {place.highlightDish
                             ? `${place.highlightDish} • ${
-                                place.address || place.city || "Makati"
+                                place.address || place.city || "Nearby"
                               }`
                             : place.address || "Local favorite"}
                         </Text>
@@ -2056,14 +2056,7 @@ export default function HomeScreen() {
                               { backgroundColor: colors.copper },
                             ]}
                             onPress={() => {
-                              router.push({
-                                pathname: "/spot/new",
-                                params: {
-                                  lat: place.latitude?.toString() || "",
-                                  lng: place.longitude?.toString() || "",
-                                  address: place.address || "",
-                                },
-                              });
+                              router.push(`/spot/${place.id}/edit`);
                             }}
                           >
                             <Text
@@ -2072,7 +2065,11 @@ export default function HomeScreen() {
                                 { color: colors.primaryText },
                               ]}
                             >
-                              Add Dish ₱
+                              {place.category === "food"
+                                ? "+ Add Dish"
+                                : place.category === "leisure"
+                                ? "+ Add Activity"
+                                : "+ Add Service"}
                             </Text>
                           </TouchableOpacity>
                         </View>
