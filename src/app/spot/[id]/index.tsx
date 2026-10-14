@@ -414,8 +414,9 @@ export default function SpotDetailScreen() {
         <Row gap={6} style={{ marginTop: 4, marginBottom: 14 }}>
           <Octicons name="location" size={13} color={colors.muted} />
           <Text style={[styles.addressText, { color: colors.muted }]}>
-            {place.address ? `${place.address} • ` : ""}
-            {place.city || "Makati"}
+            {place.address && place.city
+              ? `${place.address} • ${place.city}`
+              : place.address || place.city || "Local Spot"}
           </Text>
         </Row>
 
@@ -665,7 +666,11 @@ export default function SpotDetailScreen() {
               onPress={() => router.push(`/spot/${place.id}/edit`)}
             >
               <Text style={[styles.sectionActionLink, { color: colors.leisure }]}>
-                + Add Dish
+                {place.category === "food"
+                  ? "+ Add Dish"
+                  : place.category === "leisure"
+                  ? "+ Add Activity"
+                  : "+ Add Service"}
               </Text>
             </TouchableOpacity>
           </Row>
@@ -681,7 +686,11 @@ export default function SpotDetailScreen() {
               ]}
             >
               <Text style={[styles.emptyBoxText, { color: colors.caption }]}>
-                No specific dishes or offerings added yet.
+                {place.category === "food"
+                  ? "No specific dishes or menu items added yet."
+                  : place.category === "leisure"
+                  ? "No specific activities or highlights added yet."
+                  : "No specific services or treatments added yet."}
               </Text>
             </View>
           ) : (
@@ -702,22 +711,36 @@ export default function SpotDetailScreen() {
                       <View
                         style={[
                           styles.recommendedStarBadge,
-                          { backgroundColor: colors.leisureLight },
+                          {
+                            backgroundColor: isDark ? "#3A2912" : "#FEF3C7",
+                            borderColor: isDark ? "#854D0E" : "#FDE68A",
+                            borderWidth: 1,
+                          },
                         ]}
                       >
-                        <Text style={{ fontSize: 11 }}>⭐</Text>
+                        <Ionicons name="star" size={12} color="#D97706" />
                       </View>
                     ) : (
                       <View
                         style={[
                           styles.regularItemBadge,
-                          { backgroundColor: colors.sandDark },
+                          {
+                            backgroundColor: colors.sandDark,
+                            borderColor: colors.border,
+                            borderWidth: 1,
+                          },
                         ]}
                       >
                         <Ionicons
-                          name="sparkles-outline"
-                          size={11}
-                          color={colors.subtle}
+                          name={
+                            place.category === "food"
+                              ? "restaurant-outline"
+                              : place.category === "leisure"
+                              ? "compass-outline"
+                              : "leaf-outline"
+                          }
+                          size={12}
+                          color={catConfig.color}
                         />
                       </View>
                     )}
@@ -735,10 +758,14 @@ export default function SpotDetailScreen() {
                         <Text
                           style={[
                             styles.recommendedTag,
-                            { color: colors.leisure },
+                            { color: colors.copper },
                           ]}
                         >
-                          Must-Order Recommendation
+                          {place.category === "food"
+                            ? "Must-Order Dish"
+                            : place.category === "leisure"
+                            ? "Must-Try Activity"
+                            : "Signature Service"}
                         </Text>
                       )}
                     </View>

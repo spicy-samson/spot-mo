@@ -98,7 +98,7 @@ export default function EditSpotScreen() {
           setCategory(p.category as any);
           setNotes(p.notes || "");
           setAddressText(p.address || "");
-          setCityText(p.city || "Makati");
+          setCityText(p.city || "");
           setScheduleOpen(p.scheduleOpen || "");
           setScheduleClose(p.scheduleClose || "");
           setPaymentMethods(
@@ -292,7 +292,7 @@ export default function EditSpotScreen() {
           latitude: coords?.latitude ?? null,
           longitude: coords?.longitude ?? null,
           address: addressText.trim() || null,
-          city: cityText.trim() || "Makati",
+          city: cityText.trim() || null,
           scheduleOpen: scheduleOpen.trim() || null,
           scheduleClose: scheduleClose.trim() || null,
           paymentMethods:
@@ -613,7 +613,7 @@ export default function EditSpotScreen() {
               <Octicons name="milestone" size={13} color={colors.muted} />
               <TextInput
                 style={[styles.addressInput, { color: colors.charcoal }]}
-                placeholder="City / District (e.g. Makati, Poblacion)"
+                placeholder="City / Municipality (e.g. Dasmariñas, Teresa, Makati)"
                 placeholderTextColor={colors.muted}
                 value={cityText}
                 onChangeText={setCityText}
@@ -943,7 +943,12 @@ export default function EditSpotScreen() {
         >
           <View style={styles.fieldHeaderRow}>
             <Text style={[styles.fieldLabel, { color: colors.muted }]}>
-              Offerings & Recommendations ({offerings.length})
+              {category === "food"
+                ? "Dishes & Highlights"
+                : category === "leisure"
+                ? "Activities & Highlights"
+                : "Services & Treatments"}{" "}
+              ({offerings.length})
             </Text>
             <Text style={[styles.optionalText, { color: colors.caption }]}>
               Star = Highlight
@@ -966,7 +971,13 @@ export default function EditSpotScreen() {
                     styles.offeringNameInput,
                     { color: colors.charcoal },
                   ]}
-                  placeholder={`Dish #${idx + 1}`}
+                  placeholder={
+                    category === "food"
+                      ? `Dish #${idx + 1}`
+                      : category === "leisure"
+                      ? `Activity #${idx + 1}`
+                      : `Service #${idx + 1}`
+                  }
                   placeholderTextColor={colors.muted}
                   value={item.name}
                   onChangeText={(val) =>
@@ -1045,7 +1056,7 @@ export default function EditSpotScreen() {
                 { color: colors.leisure },
               ]}
             >
-              Add another item
+              + Add {category === "food" ? "Dish" : category === "leisure" ? "Activity" : "Service"}
             </Text>
           </TouchableOpacity>
         </View>

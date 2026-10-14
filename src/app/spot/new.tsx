@@ -116,12 +116,14 @@ export default function NewSpotModal() {
       Location.reverseGeocodeAsync({ latitude: lat, longitude: lng })
         .then(([rev]) => {
           if (rev) {
-            const city = rev.city || rev.subregion || rev.region || "Makati";
+            const city = rev.city || rev.subregion || rev.region || "";
             setCityText(city);
             if (!params.address) {
               const street = rev.street || rev.name || rev.district || "";
               setAddressText(
-                street ? `${street}, ${city}` : `Selected Pin (${city})`,
+                street
+                  ? (city ? `${street}, ${city}` : street)
+                  : (city ? `Selected Pin (${city})` : "Selected Pin"),
               );
             }
           }
@@ -165,10 +167,14 @@ export default function NewSpotModal() {
       });
 
       if (rev) {
-        const city = rev.city || rev.subregion || rev.region || "Metro Manila";
+        const city = rev.city || rev.subregion || rev.region || "";
         const street = rev.street || rev.name || rev.district || "";
         setCityText(city);
-        setAddressText(street ? `${street}, ${city}` : `Current GPS (${city})`);
+        setAddressText(
+          street
+            ? (city ? `${street}, ${city}` : street)
+            : (city ? `Current GPS (${city})` : "Current GPS"),
+        );
       } else {
         setAddressText(
           `GPS (${loc.coords.latitude.toFixed(4)}, ${loc.coords.longitude.toFixed(4)})`,
@@ -233,7 +239,7 @@ export default function NewSpotModal() {
         latitude: coords?.latitude ?? null,
         longitude: coords?.longitude ?? null,
         address: addressText,
-        city: cityText || "Makati",
+        city: cityText.trim() || null,
         paymentMethods: paymentMethods.length > 0 ? paymentMethods : ["Cash"],
         scheduleOpen: scheduleOpen.trim() || null,
         scheduleClose: scheduleClose.trim() || null,
@@ -579,6 +585,26 @@ export default function NewSpotModal() {
                 </Text>
               </TouchableOpacity>
             </View>
+
+            {/* City / Municipality (Editable) */}
+            <View
+              style={[
+                styles.cityInputWrapper,
+                {
+                  backgroundColor: colors.card,
+                  borderColor: colors.border,
+                },
+              ]}
+            >
+              <Octicons name="milestone" size={13} color={colors.muted} />
+              <TextInput
+                style={[styles.cityInputField, { color: colors.charcoal }]}
+                placeholder="City / Municipality (e.g. Dasmariñas, Teresa, Makati)"
+                placeholderTextColor={colors.muted}
+                value={cityText}
+                onChangeText={setCityText}
+              />
+            </View>
           </View>
 
           {/* 4. "What's good here?" (Offerings) */}
@@ -601,7 +627,11 @@ export default function NewSpotModal() {
                 </Text>
               </View>
               <Text style={[styles.fieldHelpText, { color: colors.caption }]}>
-                Must-order recommendations
+                {category === "food"
+                  ? "Must-order dishes & drinks"
+                  : category === "leisure"
+                  ? "Must-try activities & highlights"
+                  : "Must-try treatments & services"}
               </Text>
             </View>
 
@@ -624,8 +654,16 @@ export default function NewSpotModal() {
                     ]}
                     placeholder={
                       index === 0
-                        ? "e.g. Tapa Special, Cold Brew"
-                        : "Second item (optional)"
+                        ? category === "food"
+                          ? "e.g. Tapa Special, Cold Brew"
+                          : category === "leisure"
+                          ? "e.g. Sunset Kayak, Day Pass"
+                          : "e.g. Full Body Massage, Facial"
+                        : category === "food"
+                        ? `Dish #${index + 1}`
+                        : category === "leisure"
+                        ? `Activity #${index + 1}`
+                        : `Service #${index + 1}`
                     }
                     placeholderTextColor={colors.muted}
                     value={item.name}
@@ -715,7 +753,7 @@ export default function NewSpotModal() {
             >
               <Octicons name="plus" size={14} color={colors.leisure} />
               <Text style={[styles.addOfferingText, { color: colors.leisure }]}>
-                Add another recommendation
+                + Add {category === "food" ? "Dish" : category === "leisure" ? "Activity" : "Service"}
               </Text>
             </TouchableOpacity>
           </View>
@@ -1379,6 +1417,22 @@ const styles = StyleSheet.create({
     fontFamily: FontFamily.sansSemiBold,
     fontSize: 11.5,
     color: Colors.charcoal,
+  },
+  cityInputWrapper: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginTop: 8,
+  },
+  cityInputField: {
+    flex: 1,
+    fontFamily: FontFamily.sansRegular,
+    fontSize: 13,
+    padding: 0,
   },
   rowCentered: {
     flexDirection: "row",
