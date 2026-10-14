@@ -308,6 +308,20 @@ export default function TabSpotsScreen() {
   const wishlistCount = spots.filter((s) => s.visits.length === 0).length;
   const visitedCount = spots.filter((s) => s.visits.length > 0).length;
 
+  const locationSummaryTag = useMemo(() => {
+    const distinct = Array.from(
+      new Set(
+        filteredSpots
+          .map((s) => s.city?.trim())
+          .filter((c): c is string => Boolean(c && c.length > 0))
+      )
+    );
+    if (distinct.length === 0) return "All Locations";
+    if (distinct.length === 1) return distinct[0];
+    if (distinct.length === 2) return `${distinct[0]} & ${distinct[1]}`;
+    return `${distinct.slice(0, 2).join(" & ")} +${distinct.length - 2}`;
+  }, [filteredSpots]);
+
   const getCategoryConfig = (category: "food" | "leisure" | "self_care") => {
     switch (category) {
       case "food":
@@ -704,7 +718,7 @@ export default function TabSpotsScreen() {
             <Octicons name="location" size={11} color={colors.muted} />
             <Text style={styles.addressText} numberOfLines={1}>
               {item.address ? `${item.address} • ` : ""}
-              {item.city || "Makati"}
+              {item.city || "Nearby"}
             </Text>
           </Row>
           {/* Schedule & Payment Tags Row */}
@@ -1018,7 +1032,7 @@ export default function TabSpotsScreen() {
             <Text style={styles.listHeaderCount}>
               SHOWING {filteredSpots.length} OF {spots.length} SPOTS
             </Text>
-            <Text style={styles.listHeaderCityTag}>Makati & Poblacion</Text>
+            <Text style={styles.listHeaderCityTag}>{locationSummaryTag}</Text>
           </Row>
         }
         ListEmptyComponent={
