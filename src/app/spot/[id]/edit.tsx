@@ -366,7 +366,7 @@ export default function EditSpotScreen() {
         style={[
           styles.headerBar,
           {
-            paddingTop: insets.top + 8,
+            paddingTop: 24,
             backgroundColor: isDark
               ? "rgba(18, 18, 20, 0.96)"
               : "rgba(251, 249, 245, 0.96)",
@@ -475,9 +475,24 @@ export default function EditSpotScreen() {
             ]}
           >
             {[
-              { key: "food" as const, label: "Food & Cafe", emoji: "☕" },
-              { key: "leisure" as const, label: "Leisure", emoji: "🌿" },
-              { key: "self_care" as const, label: "Self-Care", emoji: "✨" },
+              {
+                key: "food" as const,
+                label: "Food",
+                icon: "restaurant-outline" as const,
+                activeColor: colors.food,
+              },
+              {
+                key: "leisure" as const,
+                label: "Leisure",
+                icon: "compass-outline" as const,
+                activeColor: colors.leisure,
+              },
+              {
+                key: "self_care" as const,
+                label: "Self-care",
+                icon: "leaf-outline" as const,
+                activeColor: colors.selfCare,
+              },
             ].map((cat) => {
               const isActive = category === cat.key;
               return (
@@ -488,22 +503,23 @@ export default function EditSpotScreen() {
                     isActive && [
                       styles.segmentButtonActive,
                       {
-                        backgroundColor: colors.card,
-                        borderColor: colors.border,
+                        backgroundColor: cat.activeColor,
+                        borderColor: cat.activeColor,
                       },
                     ],
                   ]}
                   onPress={() => setCategory(cat.key)}
                 >
-                  <Text style={{ fontSize: 13 }}>{cat.emoji}</Text>
+                  <Ionicons
+                    name={cat.icon}
+                    size={16}
+                    color={isActive ? "#FFFFFF" : cat.activeColor}
+                  />
                   <Text
                     style={[
                       styles.segmentText,
                       isActive
-                        ? [
-                            styles.segmentTextActive,
-                            { color: colors.charcoal },
-                          ]
+                        ? styles.segmentTextActiveWhite
                         : { color: colors.muted },
                     ]}
                   >
@@ -537,11 +553,17 @@ export default function EditSpotScreen() {
             <TouchableOpacity
               onPress={handleSnapToLiveGPS}
               disabled={geocoding}
+              style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
             >
+              <Ionicons
+                name="navigate-outline"
+                size={13}
+                color={colors.copper}
+              />
               <Text
                 style={[styles.snapGpsLink, { color: colors.copper }]}
               >
-                {geocoding ? "Locating..." : "🎯 Snap to GPS"}
+                {geocoding ? "Locating..." : "Snap to GPS"}
               </Text>
             </TouchableOpacity>
           </View>
@@ -1029,9 +1051,11 @@ export default function EditSpotScreen() {
                   )
                 }
               >
-                <Text style={{ fontSize: 14 }}>
-                  {item.isRecommended ? "⭐" : "☆"}
-                </Text>
+                <Ionicons
+                  name={item.isRecommended ? "star" : "star-outline"}
+                  size={15}
+                  color={item.isRecommended ? "#D97706" : colors.muted}
+                />
               </TouchableOpacity>
 
               {offerings.length > 1 && (
@@ -1215,6 +1239,10 @@ const styles = StyleSheet.create({
   },
   segmentTextActive: {
     fontFamily: FontFamily.sansBold,
+  },
+  segmentTextActiveWhite: {
+    fontFamily: FontFamily.sansBold,
+    color: "#FFFFFF",
   },
   snapGpsLink: {
     fontFamily: FontFamily.sansSemiBold,
