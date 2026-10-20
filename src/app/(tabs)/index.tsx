@@ -3,7 +3,7 @@ import Octicons from "@expo/vector-icons/Octicons";
 import { desc, eq } from "drizzle-orm";
 import * as Location from "expo-location";
 import { router, useFocusEffect } from "expo-router";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -67,9 +67,30 @@ function formatDistance(distKm?: number): string {
 const DEFAULT_REGION: Region = {
   latitude: 14.5547,
   longitude: 121.0244,
-  latitudeDelta: 0.02,
-  longitudeDelta: 0.02,
+  latitudeDelta: 0.014,
+  longitudeDelta: 0.014,
 };
+
+const RADIUS_PRESETS = [0.5, 1, 2, 3, 5] as const;
+type RadiusPreset = (typeof RADIUS_PRESETS)[number];
+
+const RADIUS_DELTAS: Record<
+  RadiusPreset,
+  { latitudeDelta: number; longitudeDelta: number }
+> = {
+  0.5: { latitudeDelta: 0.007, longitudeDelta: 0.007 },
+  1: { latitudeDelta: 0.014, longitudeDelta: 0.014 },
+  2: { latitudeDelta: 0.028, longitudeDelta: 0.028 },
+  3: { latitudeDelta: 0.045, longitudeDelta: 0.045 },
+  5: { latitudeDelta: 0.075, longitudeDelta: 0.075 },
+};
+
+function formatRadiusLabel(km: RadiusPreset): string {
+  if (km < 1) {
+    return `${Math.round(km * 1000)} m`;
+  }
+  return `${km} km`;
+}
 
 // Google Maps custom style (Light): Keeps parks & cultural landmarks, hides commercial & civic clutter
 const GOOGLE_MAPS_STYLE_LESS_LANDMARKS = [
@@ -237,8 +258,12 @@ export default function HomeScreen() {
   const { colors, isDark, toggleTheme } = useTheme();
   const mapRef = useRef<MapView>(null);
   const [userLocation, setUserLocation] = useState<Region | null>(null);
+  const [currentMapCenter, setCurrentMapCenter] = useState<{
+    latitude: number;
+    longitude: number;
+  } | null>(null);
   const [city, setCity] = useState("Nearby");
-  const [radiusKm, setRadiusKm] = useState(3);
+  const [radiusKm, setRadiusKm] = useState<RadiusPreset>(1);
   const [activeCategory, setActiveCategory] = useState<
     "all" | "food" | "leisure" | "self_care"
   >("all");
@@ -593,8 +618,8 @@ export default function HomeScreen() {
         const initial: Region = {
           latitude: loc.coords.latitude,
           longitude: loc.coords.longitude,
-          latitudeDelta: 0.018,
-          longitudeDelta: 0.018,
+          latitudeDelta: 0.014,
+          longitudeDelta: 0.014,
         };
 
         setUserLocation(initial);
@@ -615,13 +640,13 @@ export default function HomeScreen() {
     initLocation();
   }, []);
 
-  // Fetch places from SQLite whenever screen is focused
+  // Fetch places from SQLite whenever screen is focused or location changes
   useFocusEffect(
     useCallback(() => {
       loadPlaces();
       // Exit pinning mode whenever user navigates back to map
       setIsPinningMode(false);
-    }, [activeCategory]),
+    }, [activeCategory, userLocation]),
   );
 
   async function loadPlaces() {
@@ -712,11 +737,20 @@ export default function HomeScreen() {
     }
   };
 
+  const filteredPlaces = useMemo(() => {
+    return places.filter((p) => {
+      if (p.distanceKm !== undefined) {
+        return p.distanceKm <= radiusKm;
+      }
+      return true;
+    });
+  }, [places, radiusKm]);
+
   const heroSpot = selectedSpotId
-    ? places.find((p) => p.id === selectedSpotId) ||
-      (places.length > 0 ? places[0] : null)
-    : places.length > 0
-      ? places[0]
+    ? filteredPlaces.find((p) => p.id === selectedSpotId) ||
+      (filteredPlaces.length > 0 ? filteredPlaces[0] : null)
+    : filteredPlaces.length > 0
+      ? filteredPlaces[0]
       : null;
 
   const handleCenterGPS = async () => {
@@ -732,12 +766,12 @@ export default function HomeScreen() {
       }
 
       const last = await Location.getLastKnownPositionAsync().catch(() => null);
+      const deltas = RADIUS_DELTAS[radiusKm];
       if (last) {
         const fastTarget: Region = {
           latitude: last.coords.latitude,
           longitude: last.coords.longitude,
-          latitudeDelta: 0.012,
-          longitudeDelta: 0.012,
+          ...deltas,
         };
         setUserLocation(fastTarget);
         mapRef.current?.animateToRegion(fastTarget, 600);
@@ -750,8 +784,7 @@ export default function HomeScreen() {
       const target: Region = {
         latitude: loc.coords.latitude,
         longitude: loc.coords.longitude,
-        latitudeDelta: 0.012,
-        longitudeDelta: 0.012,
+        ...deltas,
       };
 
       setUserLocation(target);
@@ -773,10 +806,24 @@ export default function HomeScreen() {
     }
   };
 
+  const handleRadiusChange = (newRadius: RadiusPreset) => {
+    setRadiusKm(newRadius);
+    const deltas = RADIUS_DELTAS[newRadius];
+    const center = userLocation || currentMapCenter || DEFAULT_REGION;
+    mapRef.current?.animateToRegion(
+      {
+        latitude: center.latitude,
+        longitude: center.longitude,
+        ...deltas,
+      },
+      600,
+    );
+  };
+
   const cycleRadius = () => {
-    const next =
-      radiusKm === 1 ? 3 : radiusKm === 3 ? 5 : radiusKm === 5 ? 10 : 1;
-    setRadiusKm(next);
+    const currentIndex = RADIUS_PRESETS.indexOf(radiusKm);
+    const nextIndex = (currentIndex + 1) % RADIUS_PRESETS.length;
+    handleRadiusChange(RADIUS_PRESETS[nextIndex]);
   };
 
   const getCategoryBadge = (cat: string) => {
@@ -911,6 +958,10 @@ export default function HomeScreen() {
         }}
         onRegionChangeComplete={(region) => {
           setMapZoomDelta(region.latitudeDelta);
+          setCurrentMapCenter({
+            latitude: region.latitude,
+            longitude: region.longitude,
+          });
           if (isPinningMode) {
             setIsPanningMap(false);
             setCenterCoord({
@@ -930,8 +981,10 @@ export default function HomeScreen() {
           }
         }}
       >
-        {/* Concept 4: Adaptive Zoom Orbs for Pinned Spots */}
-        {places.map((place) => {
+
+
+        {/* Concept 4: Adaptive Zoom Orbs for Pinned Spots within Search Perimeter */}
+        {filteredPlaces.map((place) => {
           if (!place.latitude || !place.longitude) return null;
           const badge = getCategoryBadge(place.category);
           const isSelected = selectedSpotId === place.id;
@@ -1189,7 +1242,7 @@ export default function HomeScreen() {
             >
               <Octicons name="broadcast" size={12} color={colors.leisure} />
               <Text style={[styles.radiusText, { color: colors.charcoal }]}>
-                {radiusKm} km
+                {formatRadiusLabel(radiusKm)}
               </Text>
             </TouchableOpacity>
           </View>
@@ -1516,7 +1569,8 @@ export default function HomeScreen() {
                         { color: colors.muted },
                       ]}
                     >
-                      {places.length} spots on radar
+                      {filteredPlaces.length} spots on radar (
+                        {formatRadiusLabel(radiusKm)})
                     </Text>
                   </View>
                 </View>
@@ -1776,16 +1830,53 @@ export default function HomeScreen() {
                 </View>
               ) : (
                 <View style={styles.emptyHeroSpot}>
-                  <Text style={[styles.emptyHeroText, { color: colors.muted }]}>
-                    No spots recorded in this area yet.
+                  <Octicons
+                    name="search"
+                    size={22}
+                    color={colors.subtle}
+                    style={{ marginBottom: 6 }}
+                  />
+                  <Text
+                    style={[
+                      styles.emptyHeroText,
+                      {
+                        color: colors.charcoal,
+                        fontFamily: FontFamily.sansSemiBold,
+                      },
+                    ]}
+                  >
+                    No spots within {formatRadiusLabel(radiusKm)}
                   </Text>
+                  <TouchableOpacity
+                    style={[
+                      styles.expandRadiusBtn,
+                      { backgroundColor: colors.sandDark, marginTop: 8 },
+                    ]}
+                    onPress={cycleRadius}
+                  >
+                    <Text
+                      style={[
+                        styles.expandRadiusBtnText,
+                        { color: colors.charcoal },
+                      ]}
+                    >
+                      Expand Radius (Next:{" "}
+                      {formatRadiusLabel(
+                        RADIUS_PRESETS[
+                          (RADIUS_PRESETS.indexOf(radiusKm) + 1) %
+                            RADIUS_PRESETS.length
+                        ],
+                      )}
+                      )
+                    </Text>
+                  </TouchableOpacity>
                 </View>
               )}
 
               {/* Next 2 Nearby Spots Quick List */}
-              {places.length > 1 && (
+              {filteredPlaces.length > 1 && (
                 <View style={styles.miniSpotsList}>
-                  {places.slice(1, 3).map((spot) => {
+                  {filteredPlaces.slice(1, 3).map((spot) => {
                     const badge = getCategoryBadge(spot.category);
                     return (
                       <TouchableOpacity
@@ -1848,7 +1939,7 @@ export default function HomeScreen() {
                 <Text
                   style={[styles.halfFooterText, { color: contextInfo.color }]}
                 >
-                  Browse all {places.length} radar spots in full deck →
+                  Browse all {filteredPlaces.length} radar spots in full deck →
                 </Text>
               </TouchableOpacity>
             </View>
@@ -1883,7 +1974,7 @@ export default function HomeScreen() {
                     <Text
                       style={[styles.fullCountText, { color: colors.charcoal }]}
                     >
-                      {places.length} spots
+                      {filteredPlaces.length} spots ({formatRadiusLabel(radiusKm)})
                     </Text>
                   </View>
                 </View>
@@ -1911,25 +2002,48 @@ export default function HomeScreen() {
                 nestedScrollEnabled={true}
                 contentContainerStyle={styles.fullScrollContent}
               >
-                {places.length === 0 ? (
+                {filteredPlaces.length === 0 ? (
                   <View style={styles.fullEmptyContainer}>
-                    <Octicons name="inbox" size={32} color={colors.subtle} />
+                    <Octicons name="search" size={32} color={colors.subtle} />
                     <Text
                       style={[
                         styles.fullEmptyTitle,
                         { color: colors.charcoal },
                       ]}
                     >
-                      No spots found for this filter
+                      No spots within {formatRadiusLabel(radiusKm)}
                     </Text>
                     <Text
                       style={[styles.fullEmptySub, { color: colors.muted }]}
                     >
-                      Tap the + button to drop an anchor pin on the map.
+                      There are no spots recorded within {formatRadiusLabel(radiusKm)} of your location.
                     </Text>
+                    <TouchableOpacity
+                      style={[
+                        styles.expandRadiusActionBtn,
+                        { backgroundColor: colors.copper, marginTop: 12 },
+                      ]}
+                      onPress={cycleRadius}
+                    >
+                      <Text
+                        style={[
+                          styles.expandRadiusActionBtnText,
+                          { color: colors.primaryText },
+                        ]}
+                      >
+                        Expand Radius to{" "}
+                        {formatRadiusLabel(
+                          RADIUS_PRESETS[
+                            (RADIUS_PRESETS.indexOf(radiusKm) + 1) %
+                              RADIUS_PRESETS.length
+                          ],
+                        )}{" "}
+                        →
+                      </Text>
+                    </TouchableOpacity>
                   </View>
                 ) : (
-                  places.map((place) => {
+                  filteredPlaces.map((place) => {
                     const badge = getCategoryBadge(place.category);
                     return (
                       <View
@@ -2739,6 +2853,17 @@ const styles = StyleSheet.create({
     fontFamily: FontFamily.sansRegular,
     fontSize: 12,
   },
+  expandRadiusBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  expandRadiusBtnText: {
+    fontFamily: FontFamily.sansSemiBold,
+    fontSize: 11,
+  },
 
   /* Mini Spots List */
   miniSpotsList: {
@@ -2850,6 +2975,17 @@ const styles = StyleSheet.create({
     fontFamily: FontFamily.sansRegular,
     fontSize: 11.5,
     textAlign: "center",
+  },
+  expandRadiusActionBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  expandRadiusActionBtnText: {
+    fontFamily: FontFamily.sansBold,
+    fontSize: 12,
   },
   deckCard: {
     borderRadius: 14,
