@@ -1,17 +1,1038 @@
-import { View, Text, StyleSheet } from 'react-native';
+import { router, useFocusEffect } from "expo-router";
+import { useCallback, useMemo, useRef, useState } from "react";
+import {
+  ActivityIndicator,
+  Animated,
+  FlatList,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
+  Platform,
+  RefreshControl,
+  ScrollView,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import Ionicons from "@expo/vector-icons/Ionicons";
+import Octicons from "@expo/vector-icons/Octicons";
+import { desc, eq } from "drizzle-orm";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-export default function TabSpots() {
+import { db } from "@/../db/client";
+import { offeringsTable, placesTable, visitsTable } from "@/../db/schema";
+
+import {
+  FontFamily,
+  L,
+  Row,
+  useThemedStyles,
+  useTheme,
+} from "@/constants/theme";
+import { useTabBar } from "@/context/TabBarContext";
+
+// ============================================================================
+// DATA CONTRACT (Mirrors SQLite schema: places, offerings, visits)
+// ============================================================================
+export interface OfferingDraft {
+  id: string;
+  name: string;
+  price: number;
+  itemType: "good" | "service";
+  isRecommended: boolean;
+  notes?: string | null;
+}
+
+export interface VisitDraft {
+  id: string;
+  visitedAt: string;
+  amountSpent: number;
+  itemsSummary?: string | null;
+  rating?: number | null;
+  transportMode?: "walk" | "bike" | "transit" | "car" | "motorcycle" | "other" | null;
+  notes?: string | null;
+}
+
+export interface SpotItem {
+  id: string;
+  name: string;
+  category: "food" | "leisure" | "self_care";
+  latitude: number | null;
+  longitude: number | null;
+  address: string | null;
+  city: string | null;
+  notes: string | null;
+  paymentMethods?: ("Cash" | "Gcash" | "QRPH" | "Card")[] | null;
+  scheduleOpen?: string | null;
+  scheduleClose?: string | null;
+  contactNumber?: string | null;
+  contactPerson?: string | null;
+  isFavorite: boolean;
+  isArchived: boolean;
+  createdAt: string;
+  updatedAt: string;
+  offerings: OfferingDraft[];
+  visits: VisitDraft[];
+}
+
+function getOpenStatus(open?: string | null, close?: string | null) {
+  if (!open || !close) return null;
+  const now = new Date().toLocaleTimeString("en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  const isOpen =
+    open <= close
+      ? now >= open && now <= close
+      : now >= open || now <= close;
+  return {
+    isOpen,
+    label: isOpen ? "Open Now" : "Closed",
+    timeRange: `${open} – ${close}`,
+  };
+}
+
+function formatVisitedDate(dateStr?: string | null): string {
+  if (!dateStr) return "Recently";
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr;
+    const now = new Date();
+    const diffMs = now.getTime() - d.getTime();
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    if (diffDays === 0) return "Today";
+    if (diffDays === 1) return "Yesterday";
+    if (diffDays < 7) return `${diffDays}d ago`;
+    if (diffDays < 30) return `${Math.floor(diffDays / 7)}w ago`;
+    return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  } catch {
+    return dateStr;
+  }
+}
+
+export default function TabSpotsScreen() {
+  const insets = useSafeAreaInsets();
+  const { colors, isDark } = useTheme();
+
+  // --------------------------------------------------------------------------
+  // STATE HOOKS & DB FETCHING
+  // --------------------------------------------------------------------------
+  const [spots, setSpots] = useState<SpotItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedStatus, setSelectedStatus] = useState<
+    "all" | "favorites" | "wishlist" | "visited"
+  >("all");
+  const [selectedCategory, setSelectedCategory] = useState<
+    "all" | "food" | "leisure" | "self_care"
+  >("all");
+
+  const loadSpots = useCallback(async () => {
+    try {
+      const placesRows = await db
+        .select()
+        .from(placesTable)
+        .where(eq(placesTable.isArchived, false))
+        .orderBy(desc(placesTable.createdAt));
+
+      const offeringsRows = await db.select().from(offeringsTable);
+
+      const visitsRows = await db
+        .select()
+        .from(visitsTable)
+        .orderBy(desc(visitsTable.visitedAt));
+
+      const offeringsByPlace: Record<string, OfferingDraft[]> = {};
+      for (const off of offeringsRows) {
+        if (!offeringsByPlace[off.placeId]) {
+          offeringsByPlace[off.placeId] = [];
+        }
+        offeringsByPlace[off.placeId].push({
+          id: off.id,
+          name: off.name,
+          price: off.price,
+          itemType: off.itemType as any,
+          isRecommended: off.isRecommended,
+          notes: off.notes,
+        });
+      }
+
+      const visitsByPlace: Record<string, VisitDraft[]> = {};
+      for (const vis of visitsRows) {
+        if (!visitsByPlace[vis.placeId]) {
+          visitsByPlace[vis.placeId] = [];
+        }
+        visitsByPlace[vis.placeId].push({
+          id: vis.id,
+          visitedAt: vis.visitedAt,
+          amountSpent: vis.amountSpent,
+          itemsSummary: vis.itemsSummary,
+          rating: vis.rating,
+          transportMode: vis.transportMode as any,
+          notes: vis.notes,
+        });
+      }
+
+      const loadedSpots: SpotItem[] = placesRows.map((p) => ({
+        id: p.id,
+        name: p.name,
+        category: p.category as "food" | "leisure" | "self_care",
+        latitude: p.latitude,
+        longitude: p.longitude,
+        address: p.address,
+        city: p.city,
+        notes: p.notes,
+        paymentMethods: p.paymentMethods || ["Cash"],
+        scheduleOpen: p.scheduleOpen || null,
+        scheduleClose: p.scheduleClose || null,
+        contactNumber: p.contactNumber || null,
+        contactPerson: p.contactPerson || null,
+        isFavorite: p.isFavorite,
+        isArchived: p.isArchived,
+        createdAt: p.createdAt,
+        updatedAt: p.updatedAt,
+        offerings: offeringsByPlace[p.id] || [],
+        visits: visitsByPlace[p.id] || [],
+      }));
+
+      setSpots(loadedSpots);
+    } catch (err) {
+      console.warn("Error loading spots from SQLite:", err);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadSpots();
+    }, [loadSpots])
+  );
+
+  const handleRefresh = () => {
+    setRefreshing(true);
+    loadSpots();
+  };
+
+  const toggleFavorite = async (id: string) => {
+    const currentSpot = spots.find((s) => s.id === id);
+    if (!currentSpot) return;
+    const newFavorite = !currentSpot.isFavorite;
+
+    // Optimistic UI update
+    setSpots((prev) =>
+      prev.map((item) =>
+        item.id === id ? { ...item, isFavorite: newFavorite } : item
+      )
+    );
+
+    try {
+      await db
+        .update(placesTable)
+        .set({ isFavorite: newFavorite, updatedAt: new Date().toISOString() })
+        .where(eq(placesTable.id, id));
+    } catch (err) {
+      console.warn("Failed to persist favorite toggle:", err);
+      // Revert if error
+      setSpots((prev) =>
+        prev.map((item) =>
+          item.id === id ? { ...item, isFavorite: !newFavorite } : item
+        )
+      );
+    }
+  };
+
+  // --------------------------------------------------------------------------
+  // QUICK-RETURN COLLAPSIBLE BARS ANIMATION
+  // --------------------------------------------------------------------------
+  const { setIsTabBarHidden } = useTabBar();
+  const [headerHeight, setHeaderHeight] = useState(insets.top + 185);
+  const prevOffset = useRef(0);
+  const isHeaderVisible = useRef(true);
+  const headerTranslateY = useRef(new Animated.Value(0)).current;
+
+  const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const currentOffset = event.nativeEvent.contentOffset.y;
+    const diff = currentOffset - prevOffset.current;
+
+    // Near the top: always keep bars visible
+    if (currentOffset <= 15) {
+      if (!isHeaderVisible.current) {
+        isHeaderVisible.current = true;
+        setIsTabBarHidden(false);
+        Animated.spring(headerTranslateY, {
+          toValue: 0,
+          bounciness: 0,
+          useNativeDriver: true,
+        }).start();
+      }
+      prevOffset.current = currentOffset;
+      return;
+    }
+
+    // Scrolling DOWN -> Retract top bar upwards & hide tab bar
+    if (diff > 10 && currentOffset > 30 && isHeaderVisible.current) {
+      isHeaderVisible.current = false;
+      setIsTabBarHidden(true);
+      Animated.timing(headerTranslateY, {
+        toValue: -headerHeight,
+        duration: 220,
+        useNativeDriver: true,
+      }).start();
+    }
+    // Scrolling UP -> Instantly reveal top bar downwards & show tab bar
+    else if (diff < -10 && !isHeaderVisible.current) {
+      isHeaderVisible.current = true;
+      setIsTabBarHidden(false);
+      Animated.timing(headerTranslateY, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }).start();
+    }
+
+    prevOffset.current = currentOffset;
+  };
+
+  // --------------------------------------------------------------------------
+  // FILTERING LOGIC
+  // --------------------------------------------------------------------------
+  const filteredSpots = useMemo(() => {
+    return spots.filter((spot) => {
+      if (searchQuery.trim().length > 0) {
+        const query = searchQuery.toLowerCase();
+        const matchesName = spot.name.toLowerCase().includes(query);
+        const matchesAddress = spot.address?.toLowerCase().includes(query);
+        const matchesOfferings = spot.offerings.some((o) =>
+          o.name.toLowerCase().includes(query)
+        );
+        if (!matchesName && !matchesAddress && !matchesOfferings) return false;
+      }
+      if (selectedStatus === "favorites" && !spot.isFavorite) return false;
+      if (selectedStatus === "wishlist" && spot.visits.length > 0) return false;
+      if (selectedStatus === "visited" && spot.visits.length === 0) return false;
+      if (selectedCategory !== "all" && spot.category !== selectedCategory) {
+        return false;
+      }
+      return true;
+    });
+  }, [spots, searchQuery, selectedStatus, selectedCategory]);
+
+  const totalCount = spots.length;
+  const favoritesCount = spots.filter((s) => s.isFavorite).length;
+  const wishlistCount = spots.filter((s) => s.visits.length === 0).length;
+  const visitedCount = spots.filter((s) => s.visits.length > 0).length;
+
+  const locationSummaryTag = useMemo(() => {
+    const distinct = Array.from(
+      new Set(
+        filteredSpots
+          .map((s) => s.city?.trim())
+          .filter((c): c is string => Boolean(c && c.length > 0))
+      )
+    );
+    if (distinct.length === 0) return "All Locations";
+    if (distinct.length === 1) return distinct[0];
+    if (distinct.length === 2) return `${distinct[0]} & ${distinct[1]}`;
+    return `${distinct.slice(0, 2).join(" & ")} +${distinct.length - 2}`;
+  }, [filteredSpots]);
+
+  const getCategoryConfig = (category: "food" | "leisure" | "self_care") => {
+    switch (category) {
+      case "food":
+        return {
+          label: "Food & Cafe",
+          color: colors.food,
+          bgColor: colors.foodLight,
+          icon: "restaurant-outline" as const,
+        };
+      case "leisure":
+        return {
+          label: "Leisure & Park",
+          color: colors.leisure,
+          bgColor: colors.leisureLight,
+          icon: "compass-outline" as const,
+        };
+      case "self_care":
+        return {
+          label: "Self-Care",
+          color: colors.selfCare,
+          bgColor: colors.selfCareLight,
+          icon: "leaf-outline" as const,
+        };
+    }
+  };
+
+  const bottomClearance = 50 + Math.max(insets.bottom, 8) + 16;
+
+  // --------------------------------------------------------------------------
+  // MODERN STREAMLINED THEMED STYLES
+  // --------------------------------------------------------------------------
+  const styles = useThemedStyles((c, dark) => ({
+    screenContainer: {
+      flex: 1,
+      backgroundColor: c.canvas,
+    },
+    headerSection: {
+      position: "absolute",
+      top: 0,
+      left: 0,
+      right: 0,
+      zIndex: 10,
+      paddingHorizontal: 16,
+      paddingBottom: 12,
+      borderBottomWidth: 1,
+      borderBottomColor: c.border,
+      backgroundColor: dark ? "rgba(12, 10, 9, 0.96)" : "rgba(251, 249, 245, 0.96)",
+    },
+    screenTitle: {
+      fontFamily: FontFamily.serifBold,
+      fontSize: 24,
+      letterSpacing: -0.4,
+      color: c.charcoal,
+    },
+    screenSubtitle: {
+      fontFamily: FontFamily.sansRegular,
+      fontSize: 12,
+      color: c.muted,
+      marginTop: 2,
+    },
+    addSpotHeaderBtn: {
+      backgroundColor: c.copper,
+      paddingHorizontal: 14,
+      paddingVertical: 8,
+      borderRadius: 20,
+      ...L.shadowSm,
+    },
+    addSpotHeaderBtnText: {
+      fontFamily: FontFamily.sansBold,
+      fontSize: 12,
+      color: c.primaryText,
+    },
+    searchBarContainer: {
+      backgroundColor: dark ? "rgba(39, 39, 42, 0.6)" : "rgba(255, 255, 255, 0.9)",
+      borderColor: c.border,
+      borderWidth: 1,
+      borderRadius: 14,
+      paddingHorizontal: 12,
+      paddingVertical: Platform.OS === "ios" ? 9 : 6,
+      marginBottom: 12,
+    },
+    searchInput: {
+      fontFamily: FontFamily.sansMedium,
+      fontSize: 13,
+      color: c.charcoal,
+      padding: 0,
+      ...L.fill,
+    },
+    statusSegmentRow: {
+      gap: 8,
+      paddingBottom: 8,
+    },
+    statusSegmentPill: {
+      backgroundColor: c.sandDark,
+      borderColor: c.border,
+      borderWidth: 1,
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 18,
+    },
+    statusSegmentPillActive: {
+      backgroundColor: c.copper,
+      borderColor: c.copper,
+      ...L.shadowSm,
+    },
+    statusSegmentBadge: {
+      paddingHorizontal: 5.5,
+      paddingVertical: 1,
+      borderRadius: 8,
+      backgroundColor: c.sandDark,
+    },
+    categoryChip: {
+      paddingHorizontal: 10,
+      paddingVertical: 4.5,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: c.border,
+      backgroundColor: dark ? "rgba(39, 39, 42, 0.7)" : "rgba(255, 255, 255, 0.8)",
+    },
+    spotCard: {
+      backgroundColor: dark ? "rgba(24, 24, 27, 0.95)" : "rgba(255, 255, 255, 0.98)",
+      borderColor: c.border,
+      borderWidth: 1,
+      borderRadius: 18,
+      padding: 14,
+      ...L.shadowSm,
+    },
+    categoryBadge: {
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+      borderRadius: 8,
+    },
+    categoryBadgeText: {
+      fontFamily: FontFamily.sansBold,
+      fontSize: 10,
+    },
+    statusBadge: {
+      paddingHorizontal: 7,
+      paddingVertical: 3,
+      borderRadius: 8,
+      backgroundColor: c.sandDark,
+    },
+    statusBadgeWishlist: {
+      backgroundColor: dark ? "#2D261A" : "#FEF3C7",
+    },
+    statusBadgeText: {
+      fontFamily: FontFamily.sansSemiBold,
+      fontSize: 10,
+      color: c.charcoal,
+    },
+    statusBadgeWishlistText: {
+      color: dark ? "#FBBF24" : "#B45309",
+    },
+    favoriteBtn: {
+      width: 28,
+      height: 28,
+      borderRadius: 14,
+      backgroundColor: c.sandDark,
+      ...L.center,
+    },
+    favoriteBtnActive: {
+      backgroundColor: dark ? "#3D260A" : "#FEF3C7",
+    },
+    spotName: {
+      fontFamily: FontFamily.serifSemiBold,
+      fontSize: 16.5,
+      letterSpacing: -0.2,
+      color: c.charcoal,
+      flex: 1,
+      paddingRight: 8,
+    },
+    addressText: {
+      fontFamily: FontFamily.sansRegular,
+      fontSize: 11.5,
+      color: c.muted,
+      flexShrink: 1,
+    },
+    statusDot: {
+      width: 6,
+      height: 6,
+      borderRadius: 3,
+    },
+    statusDotLabel: {
+      fontFamily: FontFamily.sansSemiBold,
+      fontSize: 10.5,
+    },
+    notesBox: {
+      borderLeftWidth: 2.5,
+      paddingHorizontal: 9,
+      paddingVertical: 5,
+      borderRadius: 4,
+      marginVertical: 4,
+      backgroundColor: dark ? "rgba(39, 39, 42, 0.4)" : "rgba(245, 245, 240, 0.7)",
+    },
+    notesText: {
+      fontFamily: FontFamily.serifRegular,
+      fontStyle: "italic",
+      fontSize: 11.5,
+      lineHeight: 16,
+      color: c.charcoal,
+    },
+    offeringStrip: {
+      backgroundColor: c.sandDark,
+      borderColor: c.border,
+      borderWidth: 1,
+      borderRadius: 10,
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      marginTop: 2,
+      marginBottom: 6,
+    },
+    offeringIconCircle: {
+      width: 18,
+      height: 18,
+      borderRadius: 9,
+      ...L.center,
+    },
+    offeringTitle: {
+      fontFamily: FontFamily.sansMedium,
+      fontSize: 12,
+      color: c.charcoal,
+    },
+    offeringPrice: {
+      fontFamily: FontFamily.serifSemiBold,
+      fontSize: 12.5,
+      color: c.copper,
+    },
+    cardFooterRow: {
+      marginTop: 4,
+      paddingTop: 8,
+      borderTopWidth: 1,
+      borderTopColor: dark ? "rgba(39, 39, 42, 0.6)" : "rgba(235, 233, 226, 0.7)",
+      alignItems: "center",
+    },
+    metaVisitedText: {
+      fontFamily: FontFamily.sansMedium,
+      fontSize: 11,
+      color: c.muted,
+    },
+    metaWishlistText: {
+      fontFamily: FontFamily.sansMedium,
+      fontSize: 11,
+      color: c.leisure,
+    },
+    listContent: {
+      paddingHorizontal: 16,
+      gap: 14,
+    },
+    listHeaderCount: {
+      fontFamily: FontFamily.sansBold,
+      fontSize: 10,
+      letterSpacing: 0.6,
+      color: c.muted,
+    },
+    listHeaderCityTag: {
+      fontFamily: FontFamily.sansSemiBold,
+      fontSize: 10.5,
+      color: c.leisure,
+    },
+    emptyContainer: {
+      paddingVertical: 48,
+      paddingHorizontal: 24,
+      gap: 10,
+      ...L.center,
+    },
+    emptyIconCircle: {
+      width: 60,
+      height: 60,
+      borderRadius: 30,
+      backgroundColor: c.sandDark,
+      marginBottom: 6,
+      ...L.center,
+    },
+    emptyTitle: {
+      fontFamily: FontFamily.serifSemiBold,
+      fontSize: 16,
+      color: c.charcoal,
+    },
+    emptySubtitle: {
+      fontFamily: FontFamily.sansRegular,
+      fontSize: 12,
+      textAlign: "center",
+      lineHeight: 18,
+      color: c.muted,
+    },
+    emptyResetBtn: {
+      marginTop: 8,
+      paddingHorizontal: 14,
+      paddingVertical: 7,
+      borderRadius: 14,
+      backgroundColor: c.sandDark,
+    },
+  }));
+
+  // --------------------------------------------------------------------------
+  // RENDER SPOT CARD (Option A: "The Curator's Field Card")
+  // --------------------------------------------------------------------------
+  const renderSpotCard = ({ item }: { item: SpotItem }) => {
+    const cat = getCategoryConfig(item.category);
+    const hasVisited = item.visits.length > 0;
+    const lastVisit = hasVisited ? item.visits[0] : null;
+    const standout =
+      item.offerings.find((o) => o.isRecommended) || item.offerings[0];
+    const scheduleStatus = getOpenStatus(
+      item.scheduleOpen,
+      item.scheduleClose,
+    );
+
+    return (
+      <TouchableOpacity
+        style={styles.spotCard}
+        activeOpacity={0.88}
+        onPress={() => router.push(`/spot/${item.id}`)}
+      >
+        {/* Top: Name & Favorite Star Button */}
+        <Row between style={{ alignItems: "flex-start", marginBottom: 3 }}>
+          <Text style={styles.spotName} numberOfLines={1}>
+            {item.name}
+          </Text>
+          <TouchableOpacity
+            onPress={() => toggleFavorite(item.id)}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            style={[
+              styles.favoriteBtn,
+              item.isFavorite && styles.favoriteBtnActive,
+            ]}
+          >
+            <Ionicons
+              name={item.isFavorite ? "star" : "star-outline"}
+              size={14}
+              color={
+                item.isFavorite
+                  ? (isDark ? "#F59E0B" : colors.copper)
+                  : colors.subtle
+              }
+            />
+          </TouchableOpacity>
+        </Row>
+
+        {/* Location & Live Hours */}
+        <Row gap={6} style={{ alignItems: "center", marginBottom: 8 }}>
+          <Octicons name="location" size={11} color={colors.muted} />
+          <Text style={styles.addressText} numberOfLines={1}>
+            {item.address ? `${item.address} • ` : ""}
+            {item.city || "Nearby"}
+          </Text>
+
+          {scheduleStatus && (
+            <Row gap={4} style={{ alignItems: "center" }}>
+              <Text style={{ fontSize: 10, color: colors.subtle }}>•</Text>
+              <View
+                style={[
+                  styles.statusDot,
+                  {
+                    backgroundColor: scheduleStatus.isOpen
+                      ? colors.moss
+                      : colors.muted,
+                  },
+                ]}
+              />
+              <Text
+                style={[
+                  styles.statusDotLabel,
+                  {
+                    color: scheduleStatus.isOpen
+                      ? colors.moss
+                      : colors.muted,
+                  },
+                ]}
+              >
+                {scheduleStatus.label}
+              </Text>
+            </Row>
+          )}
+        </Row>
+
+        {/* Standout Offering Highlight or Curator Note */}
+        {standout ? (
+          <Row between style={styles.offeringStrip}>
+            <Row gap={7} style={L.fill}>
+              <View
+                style={[
+                  styles.offeringIconCircle,
+                  {
+                    backgroundColor: standout.isRecommended
+                      ? (isDark ? "#3A2912" : "#FEF3C7")
+                      : cat.bgColor,
+                    borderColor: standout.isRecommended
+                      ? (isDark ? "#854D0E" : "#FDE68A")
+                      : "transparent",
+                    borderWidth: standout.isRecommended ? 1 : 0,
+                  },
+                ]}
+              >
+                <Ionicons
+                  name={standout.isRecommended ? "star" : cat.icon}
+                  size={10}
+                  color={standout.isRecommended ? "#D97706" : cat.color}
+                />
+              </View>
+              <Text style={styles.offeringTitle} numberOfLines={1}>
+                {standout.name}
+              </Text>
+            </Row>
+            <Text style={styles.offeringPrice}>
+              {standout.price === 0 ? "Free" : `₱${standout.price}`}
+            </Text>
+          </Row>
+        ) : item.notes ? (
+          <View style={[styles.notesBox, { borderLeftColor: cat.color }]}>
+            <Text style={styles.notesText} numberOfLines={2}>
+              “{item.notes}”
+            </Text>
+          </View>
+        ) : null}
+
+        {/* Footer: Category Pill, Visited Metadata, and Chevron */}
+        <Row between style={styles.cardFooterRow}>
+          <Row gap={8} style={{ alignItems: "center", flex: 1, paddingRight: 8 }}>
+            {/* Category Badge */}
+            <Row
+              gap={4}
+              style={[
+                styles.categoryBadge,
+                { backgroundColor: cat.bgColor },
+              ]}
+            >
+              <Ionicons name={cat.icon} size={11} color={cat.color} />
+              <Text style={[styles.categoryBadgeText, { color: cat.color }]}>
+                {cat.label}
+              </Text>
+            </Row>
+
+            {/* Visit Status Metadata */}
+            {hasVisited ? (
+              <Row gap={4} style={{ alignItems: "center" }}>
+                <Ionicons
+                  name="checkmark-circle-outline"
+                  size={12}
+                  color={colors.food}
+                />
+                <Text style={styles.metaVisitedText} numberOfLines={1}>
+                  Visited {item.visits.length}x
+                  {lastVisit?.amountSpent ? ` · ₱${lastVisit.amountSpent}` : ""}
+                </Text>
+              </Row>
+            ) : (
+              <Row gap={4} style={{ alignItems: "center" }}>
+                <Ionicons
+                  name="bookmark-outline"
+                  size={11}
+                  color={colors.leisure}
+                />
+                <Text style={styles.metaWishlistText} numberOfLines={1}>
+                  Wishlist
+                </Text>
+              </Row>
+            )}
+          </Row>
+
+          <Octicons name="chevron-right" size={13} color={colors.subtle} />
+        </Row>
+      </TouchableOpacity>
+    );
+  };
+
   return (
-    <View style={styles.container}>
-      <Text>Tab [Home|Spots]</Text>
+    <View style={styles.screenContainer}>
+      {/* ------------------------------------------------------------------ */}
+      {/* 1. TOP HEADER & SCREEN TITLE */}
+      {/* ------------------------------------------------------------------ */}
+      <Animated.View
+        onLayout={(e) => {
+          const h = e.nativeEvent.layout.height;
+          if (h > 0) setHeaderHeight(h);
+        }}
+        style={[
+          styles.headerSection,
+          {
+            paddingTop: insets.top + 14,
+            transform: [{ translateY: headerTranslateY }],
+          },
+        ]}
+      >
+        <Row between style={{ marginBottom: 12 }}>
+          <View>
+            <Text style={styles.screenTitle}>Black Book</Text>
+            <Text style={styles.screenSubtitle}>
+              Curated spots & wishlist in Metro Manila
+            </Text>
+          </View>
+
+          {/* "+ New Spot" Action */}
+          <TouchableOpacity
+            style={styles.addSpotHeaderBtn}
+            onPress={() => router.push("/spot/new")}
+            activeOpacity={0.85}
+          >
+            <Row center gap={6}>
+              <Octicons name="plus" size={13} color={colors.primaryText} />
+              <Text style={styles.addSpotHeaderBtnText}>New Spot</Text>
+            </Row>
+          </TouchableOpacity>
+        </Row>
+
+        {/* Search Bar */}
+        <Row gap={8} style={styles.searchBarContainer}>
+          <Octicons name="search" size={14} color={colors.subtle} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search spots, coffee, dishes, neighborhood..."
+            placeholderTextColor={colors.muted}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            clearButtonMode="while-editing"
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity
+              onPress={() => setSearchQuery("")}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Octicons name="x" size={14} color={colors.subtle} />
+            </TouchableOpacity>
+          )}
+        </Row>
+
+        {/* 2. Status Segments (All, Favorites, Wishlist, Visited) */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={[L.row, styles.statusSegmentRow]}
+        >
+          {[
+            { id: "all", label: "All Spots", count: totalCount, icon: null },
+            { id: "favorites", label: "Favorites", count: favoritesCount, icon: "star" },
+            { id: "wishlist", label: "Wishlist", count: wishlistCount, icon: "bookmark" },
+            { id: "visited", label: "Visited", count: visitedCount, icon: "checkmark" },
+          ].map((seg) => {
+            const isActive = selectedStatus === seg.id;
+            return (
+              <TouchableOpacity
+                key={seg.id}
+                style={[
+                  styles.statusSegmentPill,
+                  isActive && styles.statusSegmentPillActive,
+                ]}
+                onPress={() => setSelectedStatus(seg.id as any)}
+              >
+                <Row center gap={6}>
+                  {seg.icon === "star" && (
+                    <Ionicons
+                      name="star"
+                      size={12}
+                      color={isActive ? colors.primaryText : colors.leisure}
+                    />
+                  )}
+                  {seg.icon === "bookmark" && (
+                    <Octicons
+                      name="bookmark"
+                      size={12}
+                      color={isActive ? colors.primaryText : colors.subtle}
+                    />
+                  )}
+                  {seg.icon === "checkmark" && (
+                    <Ionicons
+                      name="checkmark-circle-outline"
+                      size={13}
+                      color={isActive ? colors.primaryText : colors.food}
+                    />
+                  )}
+                  <Text
+                    style={{
+                      fontFamily: FontFamily.sansSemiBold,
+                      fontSize: 11.5,
+                      color: isActive ? colors.primaryText : colors.charcoal,
+                    }}
+                  >
+                    {seg.label}
+                  </Text>
+                  <View
+                    style={[
+                      styles.statusSegmentBadge,
+                      isActive && {
+                        backgroundColor: isDark ? "#3D3D42" : "#2C2A28",
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={{
+                        fontFamily: FontFamily.sansBold,
+                        fontSize: 9.5,
+                        color: isActive ? "#FFFFFF" : colors.charcoal,
+                      }}
+                    >
+                      {seg.count}
+                    </Text>
+                  </View>
+                </Row>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+
+        {/* 3. Category Filter Chips */}
+        <Row gap={6} style={{ marginTop: 2 }}>
+          {[
+            { id: "all", label: "All Types" },
+            { id: "food", label: "Food & Cafe", color: colors.food },
+            { id: "leisure", label: "Leisure", color: colors.leisure },
+            { id: "self_care", label: "Self-Care", color: colors.selfCare },
+          ].map((cat) => {
+            const isCatActive = selectedCategory === cat.id;
+            return (
+              <TouchableOpacity
+                key={cat.id}
+                style={[
+                  styles.categoryChip,
+                  isCatActive && {
+                    backgroundColor: cat.color || colors.charcoal,
+                    borderColor: cat.color || colors.charcoal,
+                  },
+                ]}
+                onPress={() => setSelectedCategory(cat.id as any)}
+              >
+                <Text
+                  style={{
+                    fontFamily: FontFamily.sansMedium,
+                    fontSize: 11,
+                    color: isCatActive ? "#FFFFFF" : colors.charcoal,
+                  }}
+                >
+                  {cat.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </Row>
+      </Animated.View>
+
+      {/* ------------------------------------------------------------------ */}
+      {/* 2. SPOTS LIST FEED */}
+      {/* ------------------------------------------------------------------ */}
+      <FlatList
+        data={filteredSpots}
+        keyExtractor={(item) => item.id}
+        renderItem={renderSpotCard}
+        onScroll={handleScroll}
+        scrollEventThrottle={16}
+        contentContainerStyle={[
+          styles.listContent,
+          {
+            paddingTop: headerHeight + 8,
+            paddingBottom: bottomClearance,
+          },
+        ]}
+        showsVerticalScrollIndicator={false}
+        ListHeaderComponent={
+          <Row between style={{ marginBottom: 4 }}>
+            <Text style={styles.listHeaderCount}>
+              SHOWING {filteredSpots.length} OF {spots.length} SPOTS
+            </Text>
+            <Text style={styles.listHeaderCityTag}>{locationSummaryTag}</Text>
+          </Row>
+        }
+        ListEmptyComponent={
+          <View style={styles.emptyContainer}>
+            <View style={styles.emptyIconCircle}>
+              <Octicons name="inbox" size={32} color={colors.subtle} />
+            </View>
+            <Text style={styles.emptyTitle}>No spots found</Text>
+            <Text style={styles.emptySubtitle}>
+              Try adjusting your search query or reset the active filter tags.
+            </Text>
+            <TouchableOpacity
+              style={styles.emptyResetBtn}
+              onPress={() => {
+                setSearchQuery("");
+                setSelectedStatus("all");
+                setSelectedCategory("all");
+              }}
+            >
+              <Text
+                style={{
+                  fontFamily: FontFamily.sansSemiBold,
+                  fontSize: 11.5,
+                  color: colors.charcoal,
+                }}
+              >
+                Reset Filters
+              </Text>
+            </TouchableOpacity>
+          </View>
+        }
+      />
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-});
