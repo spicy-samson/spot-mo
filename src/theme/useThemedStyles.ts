@@ -1,8 +1,9 @@
+import { ThemeColors } from "@/constants/colors";
+import { useTheme } from "@/context/ThemeContext";
 import { useMemo } from "react";
 import { StyleSheet } from "react-native";
-import { useTheme, LightColors } from "@/constants/theme";
 
-export type ThemeColors = typeof LightColors;
+export type { ThemeColors };
 
 /**
  * Custom hook to generate a StyleSheet bound directly to the active theme colors.
@@ -19,11 +20,11 @@ export type ThemeColors = typeof LightColors;
  * }));
  */
 export function useThemedStyles<
-  T extends StyleSheet.NamedStyles<T> | StyleSheet.NamedStyles<any>
->(
-  factory: (colors: ThemeColors, isDark: boolean) => T
-): T {
+  T extends StyleSheet.NamedStyles<T> | StyleSheet.NamedStyles<any>,
+>(factory: (colors: ThemeColors, isDark: boolean) => T): T {
   const { colors, isDark } = useTheme();
-  return useMemo(() => StyleSheet.create(factory(colors, isDark)), [colors, isDark]);
+  return useMemo(
+    () => StyleSheet.create(factory(colors, isDark)),
+    [colors, isDark],
+  );
 }
-

@@ -1,6 +1,6 @@
+import { DarkColors, LightColors } from "@/constants/colors";
 import React, { createContext, useContext, useState } from "react";
 import { useColorScheme as useRNColorScheme } from "react-native";
-import { LightColors, DarkColors } from "@/constants/theme";
 
 export type ThemeMode = "light" | "dark" | "system";
 
@@ -30,13 +30,16 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   const toggleTheme = () => {
     setMode((prev) => {
-      const currentDark = prev === "system" ? systemScheme === "dark" : prev === "dark";
+      const currentDark =
+        prev === "system" ? systemScheme === "dark" : prev === "dark";
       return currentDark ? "light" : "dark";
     });
   };
 
   return (
-    <ThemeContext.Provider value={{ mode, setMode, toggleTheme, isDark, colors }}>
+    <ThemeContext.Provider
+      value={{ mode, setMode, toggleTheme, isDark, colors }}
+    >
       {children}
     </ThemeContext.Provider>
   );

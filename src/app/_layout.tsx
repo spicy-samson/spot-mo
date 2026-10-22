@@ -27,7 +27,8 @@ import {
 } from "@expo-google-fonts/inter";
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 
-import { db } from "@/../db/client";
+import { db, expo } from "@/../db/client";
+import { useDrizzleStudio } from "expo-drizzle-studio-plugin";
 import migrations from "@/../drizzle/migrations";
 
 import { ThemeProvider } from "@/context/ThemeContext";
@@ -35,6 +36,8 @@ import { ThemeProvider } from "@/context/ThemeContext";
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
 export default function RootLayout() {
+  useDrizzleStudio(expo);
+
   const [fontsLoaded, fontError] = useFonts({
     Lora_400Regular,
     Lora_500Medium,
